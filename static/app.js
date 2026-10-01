@@ -152,6 +152,7 @@ const els = {
   insertModalClose: document.getElementById("insertModalClose"),
   downloadPdfButton: document.getElementById("downloadPdfButton"),
   downloadLongButton: document.getElementById("downloadLongButton"),
+  downloadPszButton: document.getElementById("downloadPszButton"),
   layoutStatus: document.getElementById("layoutStatus"),
   generateProgressWrap: document.getElementById("generateProgressWrap"),
   progressFill: document.getElementById("progressFill"),
@@ -2901,7 +2902,7 @@ function setGenerating(busy, text) {
   state.generating = busy;
   els.generateProgressWrap.classList.toggle("hidden", !busy);
   els.progressText.textContent = text || "";
-  setControlBusy([els.downloadPdfButton, els.downloadLongButton], busy);
+  setControlBusy([els.downloadPdfButton, els.downloadLongButton, els.downloadPszButton], busy);
 }
 
 function triggerDownload(url, name) {
@@ -2930,6 +2931,39 @@ async function downloadPdf() {
     });
     triggerDownload(data.pdf_url, data.pdf_name);
     setStatus(els.layoutStatus, `PDF 已生成（${data.page_count} 页）。`, "success");
+  } catch (e) {
+    setStatus(els.layoutStatus, e.message, "error");
+  } finally {
+    setGenerating(false);
+  }
+}
+
+async function downloadPsz() {
+  const payload = layoutPayload();
+  if (!payload.images.length) {
+    setStatus(els.layoutStatus, "没有可导出的截图。", "error");
+    return;
+  }
+  if (state.generating) return;
+  setGenerating(true, "正在生成 psz…");
+  setStatus(els.layoutStatus, "");
+  try {
+    const data = await fetchJson("/api/psz", {
+      method: "POST",
+      headers: JSON_HEADERS,
+      body: JSON.stringify(payload),
+    });
+    triggerDownload(data.psz_url, data.psz_name);
+    // 每行只有一个小节时包里不带行/小节线（小节线没有信息量），PDF Score 会自己识别。
+    const detail = [
+      `${data.page_count} 页`,
+      data.has_meta ? `${data.measure_count} 小节` : "未含小节线",
+      data.has_audio ? "含伴奏" : null,
+      data.has_cover ? "含封面" : null,
+    ]
+      .filter(Boolean)
+      .join(" / ");
+    setStatus(els.layoutStatus, `psz 已生成（${detail}）。`, "success");
   } catch (e) {
     setStatus(els.layoutStatus, e.message, "error");
   } finally {
@@ -3360,6 +3394,7 @@ els.autoMeasureButton.addEventListener("click", async () => {
 });
 els.downloadPdfButton.addEventListener("click", downloadPdf);
 els.downloadLongButton.addEventListener("click", downloadLongImage);
+els.downloadPszButton.addEventListener("click", downloadPsz);
 
 // 去色 details：摘要点击控制。
 if (els.cleanDetailsSummary) {

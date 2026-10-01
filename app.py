@@ -8,6 +8,7 @@ import tempfile
 import threading
 import time
 import uuid
+import zipfile
 import os
 import webbrowser
 from pathlib import Path
@@ -28,6 +29,7 @@ from tab_extractor import (
     VideoMetadata,
     build_long_image,
     build_pdf_from_images,
+    build_score_meta,
     build_video_metadata,
     compute_stitch_seams,
     detect_measure_barlines,
@@ -35,6 +37,7 @@ from tab_extractor import (
     extract_bilibili_id,
     extract_note_mask,
     extract_unique_crops,
+    find_audio_file,
     find_video_file,
     get_video_duration,
     hex_to_rgb,
@@ -544,7 +547,7 @@ def run_capture_job(job_id: str, payload: Dict[str, Any]) -> None:
                 video_path = Path(source.get("video_path") or "")
                 if not video_path.exists():
                     print("正在下载 Bilibili 视频...")
-                    video_path = download_bilibili_video(source["url"], download_dir)
+                    video_path = download_bilibili_video(source["url"], download_dir, with_audio=True)
                 downloaded_start_sec = 0.0
                 metadata = build_video_metadata(
                     raw_title=source_metadata.raw_title,
@@ -851,7 +854,8 @@ def api_set_skipped_version():
 def run_bilibili_download(source_id: str, url: str, cache_dir: Path, bvid: str) -> None:
     """Background Bilibili download started at import time."""
     try:
-        path = download_bilibili_video(url, cache_dir)
+        # 顺带下音频轨：导出 psz 要拿它当伴奏（制谱用不到，但包里有它才有意义）。
+        path = download_bilibili_video(url, cache_dir, with_audio=True)
         # 统一按 BV 命名(保留实际后缀 .mp4/.m4s)，避免标题的非法字符作文件名。
         target = cache_dir / (f"{bvid}" + Path(path).suffix.lower())
         if path.resolve() != target.resolve():
@@ -1740,7 +1744,7 @@ def preview_source():
                 video_path = cached
             else:
                 # 预览也用“最终下载的同一清晰度”：缓存目录下载整份（非 low 预览副本）
-                video_path = download_bilibili_video(source["url"], base_dir)
+                video_path = download_bilibili_video(source["url"], base_dir, with_audio=True)
                 source["video_path"] = str(video_path)
             save_video_frame(video_path, preview_path, time_sec=time_sec)
             # 诚实清晰度：优先 .dlqh(实测像素高度)；否则退 .dlqn(请求档位)
@@ -1957,6 +1961,124 @@ def prepare_final_strips(
     return final_dir, index
 
 
+# 包内音轨的 MIME（扩展名 → type）。PDF Score 那边带音频文件时会按扩展名重算一遍，
+# 这里写上只是让 JSON 自己看得懂。
+_AUDIO_MIME = {
+    ".m4a": "audio/mp4",
+    ".mp4": "audio/mp4",
+    ".mp3": "audio/mpeg",
+    ".wav": "audio/wav",
+    ".aac": "audio/aac",
+    ".ogg": "audio/ogg",
+    ".oga": "audio/ogg",
+    ".opus": "audio/opus",
+    ".flac": "audio/flac",
+    ".webm": "audio/webm",
+}
+
+
+def _source_audio_path(job: Dict[str, Any], source: Dict[str, Any]) -> Optional[Path]:
+    """这次导出能用的音轨：导入 B 站视频时跟着下下来的 `audio.m4a`（没有就 None）。
+
+    只有 B 站源会有 —— 本地视频的音视频混在一个文件里，不引 ffmpeg 拆不出来。
+    """
+    if source.get("type") != "bilibili":
+        return None
+    candidates = [source.get("cache_dir"), job.get("cache_dir")]
+    video_path = source.get("video_path")
+    if video_path:
+        candidates.append(str(Path(video_path).parent))
+    seen: set = set()
+    for raw in candidates:
+        if not raw:
+            continue
+        directory = Path(raw)
+        if directory in seen:
+            continue
+        seen.add(directory)
+        found = find_audio_file(directory)
+        if found is not None:
+            return found
+    return None
+
+
+# B 站封面(pic) 实际是什么格式按魔数认，别一律当 jpg —— PDF Score 那边靠扩展名定 blob 类型。
+_IMAGE_MAGIC = (
+    (b"\xff\xd8\xff", "jpg"),
+    (b"\x89PNG\r\n\x1a\n", "png"),
+    (b"GIF8", "gif"),
+    (b"BM", "bmp"),
+)
+
+
+def _image_ext_from_bytes(data: bytes) -> str:
+    for magic, ext in _IMAGE_MAGIC:
+        if data.startswith(magic):
+            return ext
+    if data[:4] == b"RIFF" and data[8:12] == b"WEBP":
+        return "webp"
+    if data[4:12] in (b"ftypavif", b"ftypavis"):
+        return "avif"
+    return "jpg"
+
+
+def _source_cover(source: Dict[str, Any]) -> Optional[tuple]:
+    """这次导出能用的封面 = B 站视频封面。返回 `(包内文件名, 字节)`，拿不到就 None。
+
+    复用历史记录那条 `/api/history/cover` 已经在用的 `_bilibili_real_cover`（自带短 TTL 缓存），
+    所以列表里看过的封面不会为导出再拉一次。
+    """
+    if source.get("type") != "bilibili":
+        return None
+    cache_dir = source.get("cache_dir")
+    key = Path(cache_dir).name if cache_dir else ""
+    if not key.startswith("BV"):
+        key = str(((source.get("cache") or {}).get("key")) or "")
+    if not key:
+        return None
+    try:
+        data = _bilibili_real_cover(key)
+    except Exception:
+        return None
+    if not data:
+        return None
+    return f"cover.{_image_ext_from_bytes(data)}", data
+
+
+def _build_layout_pdf(
+    job_id: str,
+    payload: Dict[str, Any],
+    opts: Dict[str, Any],
+    source_metadata: VideoMetadata,
+    output_pdf: Path,
+    geometry: Optional[Dict[str, Any]] = None,
+) -> int:
+    """把第 4 步的截图按当前排版参数落成一个 PDF，返回页数（**0 = 一张截图都没有**）。
+
+    `geometry` 非空时带出这次排版的像素几何（见 `build_pdf_from_images`），
+    导出 psz 要用它算小节线，**不能另写一套排版**。
+    """
+    final_dir, index = prepare_final_strips(job_id, payload, opts)
+    if index == 0:
+        return 0
+    return build_pdf_from_images(
+        final_dir,
+        output_pdf,
+        margin=opts["margin"],
+        spacing=opts["spacing"],
+        bg_color=opts["bg_color"],
+        text_color=opts["text_color"],
+        orientation=opts["orientation"],
+        align=opts["align"],
+        valign=opts["valign"],
+        fit_width=True,
+        title_lines=opts["title_lines"],
+        title_spacing=opts["title_spacing"],
+        source_url=source_metadata.source_url,
+        geometry=geometry,
+    )
+
+
 @app.post("/api/pdf")
 def build_pdf():
     ensure_cache_dirs()
@@ -1972,32 +2094,96 @@ def build_pdf():
         source_metadata = metadata_from_dict(source.get("metadata", {}))
         opts = _parse_layout_payload(payload)
 
-        final_dir, index = prepare_final_strips(job_id, payload, opts)
-        if index == 0:
-            return json_error("没有可导出的截图。")
-
         output_pdf = RUNS_DIR / job_id / safe_pdf_name(payload.get("output") or "tablatura.pdf")
-        page_count = build_pdf_from_images(
-            final_dir,
-            output_pdf,
-            margin=opts["margin"],
-            spacing=opts["spacing"],
-            bg_color=opts["bg_color"],
-            text_color=opts["text_color"],
-            orientation=opts["orientation"],
-            align=opts["align"],
-            valign=opts["valign"],
-            fit_width=True,
-            title_lines=opts["title_lines"],
-            title_spacing=opts["title_spacing"],
-            source_url=source_metadata.source_url,
-        )
+        page_count = _build_layout_pdf(job_id, payload, opts, source_metadata, output_pdf)
+        if page_count == 0:
+            return json_error("没有可导出的截图。")
 
         update_job(job_id, pdf_name=output_pdf.name, pdf_url=f"/api/jobs/{job_id}/pdf")
         return jsonify({
             "pdf_url": f"/api/jobs/{job_id}/pdf",
             "pdf_name": output_pdf.name,
             "page_count": page_count,
+        })
+    except Exception as exc:
+        return json_error(str(exc), 500)
+
+
+@app.post("/api/psz")
+def build_psz():
+    """导出 PDF Score 的 `.psz`（改了后缀的 zip）：`score.pdf` + `score.json`，
+    B 站源还会带上 `audio.<ext>`（伴奏）与 `cover.<ext>`（视频封面）。
+
+    小节线用的是这次排版本身算出来的几何 —— final 竖条是按小节线切的，每条正好一个小节，
+    所以行内首尾两条竖线都标上，PDF Score 那边就能直接点小节跳转，不必再靠谱面识别。
+    **每一行都只有两条小节线（= 每行一个小节）时那些小节线不算数**：包里有音频就只写一份
+    `pages` 留空的 `score.json`（留住标题与音频对齐），没有音频就干脆不放 `score.json`。
+    """
+    ensure_cache_dirs()
+    payload = request.get_json(force=True, silent=True) or {}
+    try:
+        job_id = payload.get("job_id")
+        with STORE_LOCK:
+            job = JOBS.get(job_id)
+        if job is None:
+            return json_error("未知的任务。", 404)
+
+        source = SOURCES.get(job.get("source_id"), {})
+        source_metadata = metadata_from_dict(source.get("metadata", {}))
+        opts = _parse_layout_payload(payload)
+
+        raw_name = payload.get("output") or "tablatura.pdf"
+        output_pdf = RUNS_DIR / job_id / safe_pdf_name(raw_name)
+        geometry: Dict[str, Any] = {}
+        page_count = _build_layout_pdf(job_id, payload, opts, source_metadata, output_pdf, geometry)
+        if page_count == 0:
+            return json_error("没有可导出的截图。")
+
+        title = opts["title_lines"][0] if opts["title_lines"] else (source_metadata.display_title or "")
+        audio_file = _source_audio_path(job, source)
+        # 音频从 0 秒对齐第 1 小节（下下来的就是整条音轨）。
+        audio_meta = None
+        if audio_file is not None:
+            ext = audio_file.suffix.lower()
+            audio_meta = {"name": f"audio{ext}", "type": _AUDIO_MIME.get(ext, "")}
+
+        # 每行都只有两条小节线时 meta 是 None —— 那种小节线什么也没描述出来；
+        # 但包里有音频时仍旧要写一份（pages 留空）把标题与音频对齐带过去。
+        meta = build_score_meta(geometry, title, audio_meta)
+        measure_count = 0
+        if meta is not None:
+            measure_count = sum(
+                max(0, len(system.get("bars") or []) - 1)
+                for page in meta["pages"]
+                for system in page["systems"]
+            )
+        cover = _source_cover(source)
+
+        output_psz = RUNS_DIR / job_id / safe_output_name(raw_name, ".psz")
+        with zipfile.ZipFile(output_psz, "w") as zf:
+            if meta is not None:
+                zf.writestr(
+                    "score.json",
+                    json.dumps(meta, ensure_ascii=False, indent=2).encode("utf-8"),
+                    compress_type=zipfile.ZIP_DEFLATED,
+                )
+            if audio_file is not None:
+                # AAC 本身就是压缩过的，再 deflate 只是白费时间。
+                zf.write(audio_file, audio_meta["name"], compress_type=zipfile.ZIP_STORED)
+            if cover is not None:
+                zf.writestr(cover[0], cover[1], compress_type=zipfile.ZIP_STORED)
+            # PDF 本身已是压缩过的图像，再 deflate 只是白费时间。
+            zf.write(output_pdf, "score.pdf", compress_type=zipfile.ZIP_STORED)
+
+        update_job(job_id, psz_name=output_psz.name, psz_url=f"/api/jobs/{job_id}/psz")
+        return jsonify({
+            "psz_url": f"/api/jobs/{job_id}/psz",
+            "psz_name": output_psz.name,
+            "page_count": page_count,
+            "measure_count": measure_count,
+            "has_meta": meta is not None,
+            "has_audio": audio_file is not None,
+            "has_cover": cover is not None,
         })
     except Exception as exc:
         return json_error(str(exc), 500)
@@ -2411,6 +2597,18 @@ def job_pdf(job_id: str):
     if job is None or job.get("status") != "done":
         return json_error("PDF 尚未生成。", 404)
     return send_from_directory(RUNS_DIR / job_id, job["pdf_name"], as_attachment=False)
+
+
+@app.get("/api/jobs/<job_id>/psz")
+def job_psz(job_id: str):
+    with STORE_LOCK:
+        job = JOBS.get(job_id)
+    if job is None or job.get("status") != "done":
+        return json_error("psz 尚未生成。", 404)
+    name = job.get("psz_name")
+    if not name or not (RUNS_DIR / job_id / name).exists():
+        return json_error("psz 文件不存在。", 404)
+    return send_from_directory(RUNS_DIR / job_id, name, as_attachment=False)
 
 
 @app.get("/api/jobs/<job_id>/long_image")

@@ -6,6 +6,7 @@ macOS / Linux / Windows 运行。
 
 import base64
 import io
+import json
 import re
 import time
 from pathlib import Path
@@ -29,6 +30,15 @@ _session = curl_requests.Session(headers=_BASE_HEADERS, impersonate="chrome124")
 
 # 单文件 MP4 流的可尝试清晰度（qn），从高到低。未登录时 B 站会自动降到可用档。
 _FALLBACK_QN = (116, 112, 80, 64, 32, 16)
+
+# 音频轨固定存这个文件名（和视频同目录）。**扩展名不能在 VIDEO_FILE_EXTENSIONS 里**，
+# 否则 `find_video_file` 会把音频当成视频挑走；`.m4a` 正好也是这段内容的正确后缀。
+AUDIO_FILE_NAME = "audio.m4a"
+
+# DASH 音频轨里能直接当 .m4a 播的 AAC 档：30216=64k / 30232=132k / 30280=192k。
+# **认的是音频轨的 `id`，不是 `codecid`**（实测音频轨的 codecid 一律是 0；`mimeType` 都是 audio/mp4）。
+# 杜比(EC-3)与 Hi-Res(FLAC) 分别在 dash.dolby / dash.flac 下、不在 dash.audio 里，浏览器也未必解得了。
+_AAC_AUDIO_IDS = (30216, 30232, 30280)
 
 
 def read_cookie() -> Optional[str]:
@@ -96,13 +106,94 @@ def _session_headers(url: str, cookie: Optional[str]) -> dict:
     return headers
 
 
+# --- 统一请求入口：浏览器指纹 + 主页热身 + 风控(412)降级 ---------------------
+#
+# 为什么 B 站请求不能走标准库 urllib / 裸 requests：
+# B 站风控按 **TLS/HTTP 指纹** 判定脚本，命中即返回 `HTTP 412 Precondition Failed`
+# （实测：urllib 请求 view 接口与视频页均为 412，即使补齐 Cookie 与整套浏览器头也一样；
+# 换成 curl_cffi 的 impersonate 立刻 200）。海外 / 机房 IP 的判定阈值更低，
+# 所以海外用户"一导入就 412"。本模块统一走下面的入口，避免各处各写一套。
+
+_warmed_up = False
+
+_RISK_CONTROL_HINT = (
+    "B 站风控拦截(HTTP 412)：当前网络环境被判定为异常请求，常见于海外或机房 IP。"
+    "已自动降级重试仍失败，请稍后重试或更换网络。"
+)
+
+
+def warm_up(force: bool = False) -> None:
+    """访问一次 B 站主页，让会话带上 buvid3 / b_nut 等风控 Cookie。
+
+    指纹问题由 `impersonate` 解决；这里再补一份 Cookie 画像，进一步降低被拦概率。
+    失败不抛异常（只是少一层保险，不影响后续请求）。
+    """
+    global _warmed_up
+    if _warmed_up and not force:
+        return
+    _warmed_up = True
+    try:
+        _session.get("https://www.bilibili.com/", timeout=10, impersonate="chrome124")
+    except Exception:
+        pass
+
+
+def bili_get(url: str, cookie: Optional[str] = None, timeout: float = 15,
+             headers: Optional[dict] = None):
+    """**所有 B 站请求的统一入口**：浏览器指纹 + 热身，412(风控) 时自动降级重试。
+
+    重试阶梯：先用传入的 Cookie（通常是登录态），被拦则换游客态并重新热身
+    （换一份新的 buvid）。返回 curl_cffi 的 Response。
+    """
+    plan: list = [(cookie, False)] if cookie else [(None, False)]
+    plan.append((None, True))  # 游客态 + 重新热身
+
+    last_error: Optional[Exception] = None
+    for use_cookie, force in plan:
+        merged = _session_headers(url, use_cookie)
+        if headers:
+            merged.update(headers)
+        warm_up(force=force)
+        try:
+            resp = _session.get(url, headers=merged, timeout=timeout,
+                                impersonate="chrome124")
+        except Exception as exc:
+            last_error = exc
+            continue
+        if resp.status_code != 412:
+            return resp
+        try:
+            resp.close()
+        except Exception:
+            pass
+        last_error = RuntimeError(_RISK_CONTROL_HINT)
+
+    raise last_error if last_error is not None else RuntimeError("B 站请求失败。")
+
+
+def get_json(url: str, cookie: Optional[str] = None, timeout: float = 15) -> dict:
+    """请求一个 B 站 JSON 接口并解析（含 412 风控降级）。"""
+    resp = bili_get(url, cookie=cookie, timeout=timeout,
+                    headers={"Accept": "application/json, text/plain, */*"})
+    resp.raise_for_status()
+    return resp.json()
+
+
+def resolve_short_url(url: str, timeout: float = 20) -> str:
+    """展开 b23.tv 短链等跳转，返回最终 URL；失败时原样返回。"""
+    try:
+        resp = bili_get(url, timeout=timeout,
+                        headers={"Accept": "text/html,application/xhtml+xml"})
+        return str(resp.url or url)
+    except Exception:
+        return url
+
+
 def _get_cid(url: str, cookie: Optional[str]) -> int:
     """从 view 接口拿视频 cid（分 P 取第一个）。"""
     bvid = extract_bvid(url)
     view_url = "https://api.bilibili.com/x/web-interface/view?bvid=" + bvid
-    resp = _session.get(view_url, headers=_session_headers(url, cookie), timeout=15)
-    resp.raise_for_status()
-    data = resp.json().get("data") or {}
+    data = get_json(view_url, cookie=cookie, timeout=15).get("data") or {}
     pages = data.get("pages") or []
     cid = (pages[0].get("cid") if pages else None) or data.get("cid")
     if not cid:
@@ -151,10 +242,7 @@ def _find_durl(url: str, cid: int, cookie: Optional[str], quality: Optional[int]
             "https://api.bilibili.com/x/player/playurl?bvid=%s&cid=%s&qn=%s&fnval=0&fnver=0&fourk=1"
             % (bvid, cid, q)
         )
-        resp = _session.get(playurl, headers=_session_headers(url, cookie), timeout=15,
-                            impersonate="chrome124")
-        resp.raise_for_status()
-        data = resp.json().get("data") or {}
+        data = get_json(playurl, cookie=cookie, timeout=15).get("data") or {}
         durl = data.get("durl") or []
         if not durl:
             continue
@@ -175,25 +263,27 @@ def _download_stream(url: str, headers: dict, dest: Path) -> None:
             f.write(chunk)
 
 
-def dash_video_candidates(url: str, cookie: Optional[str], max_qn: Optional[int]) -> list:
-    """从视频页 SSR(playinfo) 取 DASH 视频轨候选；码率 aac? 只要 video codecid=AVC(7) 可读。
+def _playinfo_dash(url: str, cookie: Optional[str]) -> dict:
+    """取视频页 SSR(`window.__playinfo__`) 里的 `dash` 段；拿不到就返回 {}。
 
-    返回 [(videoid, codecid, baseUrl, hasUrl)]
+    视频轨与音频轨都在这一段里，所以一次取、两边用（别为音频再抓一遍页面）。
     """
-    import re as r, json as j
     try:
-        h = _session_headers(url, cookie)
-        html = _session.get(url, headers=h, timeout=15, impersonate="chrome124").text
+        html = bili_get(url, cookie=cookie, timeout=15,
+                        headers={"Accept": "text/html,application/xhtml+xml"}).text
     except Exception:
-        return []
-    m = r.search(r'window\.__playinfo__\s*=\s*(\{.*?\})\s*</script>', html, r.S)
+        return {}
+    m = re.search(r'window\.__playinfo__\s*=\s*(\{.*?\})\s*</script>', html, re.S)
     if not m:
-        return []
+        return {}
     try:
-        data = j.loads(m.group(1)).get("data") or {}
+        return (json.loads(m.group(1)).get("data") or {}).get("dash") or {}
     except Exception:
-        return []
-    dash = data.get("dash") or {}
+        return {}
+
+
+def _video_picks(dash: dict, max_qn: Optional[int]) -> list:
+    """DASH 视频轨候选 [(videoid, codecid, baseUrl)]；只要 AVC(codecid=7)，OpenCV 才读得了。"""
     out = []
     for v in dash.get("video") or []:
         cc = int(v.get("codecid") or -1)
@@ -207,11 +297,61 @@ def dash_video_candidates(url: str, cookie: Optional[str], max_qn: Optional[int]
     return out
 
 
+def _audio_picks(dash: dict) -> list:
+    """DASH 音频轨候选 [(audioid, codecid, baseUrl)]，码率高的在前（id 越大码率越高）。"""
+    tracks = [
+        a for a in (dash.get("audio") or [])
+        if (a.get("baseUrl") or a.get("base_url"))
+    ]
+    aac = [a for a in tracks if int(a.get("id") or 0) in _AAC_AUDIO_IDS]
+    # id 认不出来时（B 站以后加了新档）退一步：dash.audio 里 mime 是 audio/mp4 的都能当 .m4a
+    picks = aac or [a for a in tracks if (a.get("mimeType") or "") == "audio/mp4"]
+    out = [
+        (int(a.get("id") or 0), int(a.get("codecid") or 0), a.get("baseUrl") or a.get("base_url"))
+        for a in picks
+    ]
+    out.sort(key=lambda x: x[0], reverse=True)
+    return out
+
+
+def dash_video_candidates(url: str, cookie: Optional[str], max_qn: Optional[int]) -> list:
+    """从视频页 SSR(playinfo) 取 DASH 视频轨候选；返回 [(videoid, codecid, baseUrl)]"""
+    return _video_picks(_playinfo_dash(url, cookie), max_qn)
+
+
+def dash_audio_candidates(url: str, cookie: Optional[str]) -> list:
+    """从视频页 SSR(playinfo) 取 DASH 音频轨候选（只取能当 .m4a 播的 AAC 档）。"""
+    return _audio_picks(_playinfo_dash(url, cookie))
+
+
+def _download_audio_track(url: str, output_dir: Path, cookie: Optional[str], dash: dict) -> Optional[Path]:
+    """跟着视频一起把 DASH 音频轨下到 `output_dir/audio.m4a`；下不到返回 None。
+
+    **不抛异常**：音频只是 psz 的附加内容，不该因为它拖垮视频下载（制谱本来只要画面）。
+    先写 `.part` 再改名，避免半个文件被当成可用音频捡走。
+    """
+    for _aid, _cc, base in _audio_picks(dash)[:3]:
+        try:
+            if not _probe_ok(base, _session_headers(url, cookie)):
+                continue
+            out = Path(output_dir) / AUDIO_FILE_NAME
+            tmp = out.with_name(out.name + ".part")
+            _download_stream(base, _session_headers(url, cookie), tmp)
+            if tmp.stat().st_size > 0:
+                tmp.replace(out)
+                return out
+            tmp.unlink(missing_ok=True)
+        except Exception:
+            continue
+    return None
+
+
 def download_bilibili_video_native(
     url: str,
     output_dir: Path,
     quality: Optional[int] = None,
     cookie: Optional[str] = None,
+    with_audio: bool = False,
 ) -> Path:
     output_dir = Path(output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
@@ -241,9 +381,10 @@ def download_bilibili_video_native(
         modes.append(None)
     last = None
     for use_cookie in dict.fromkeys(modes):  # 先去重用次
-        # 1) DASH 视频轨(无音频、不合并) —— SSR; 仅视频便于 OpenCV/取帧
+        # 1) DASH 视频轨 —— SSR; 仅视频便于 OpenCV/取帧（音频按需另下，见 with_audio）
         try:
-            picks = dash_video_candidates(url, use_cookie, quality)
+            dash = _playinfo_dash(url, use_cookie)
+            picks = _video_picks(dash, quality)
             picks.sort(key=lambda x: x[0], reverse=True)
             for vid, cc, base in picks[:6]:
                 if not _probe_ok(base, _session_headers(url, use_cookie)):
@@ -251,10 +392,14 @@ def download_bilibili_video_native(
                 out = output_dir / "video.m4s"
                 _download_stream(base, _session_headers(url, use_cookie), out)
                 _record(out, vid)
+                if with_audio:
+                    audio = _download_audio_track(url, output_dir, use_cookie, dash)
+                    print("音频轨：%s" % (audio.name if audio else "未取到，这次导出没有音频"))
                 return out
         except Exception as exc:
             last = exc
-        # 2) 回退单文件 mp4(durl)
+        # 2) 回退单文件 mp4(durl) —— 音视频是混在一起的，没有独立音轨可拿（不引入 ffmpeg 去拆），
+        #    所以这条路上导出 psz 不会带音频。
         try:
             direct, qn = _find_durl(url, cid, use_cookie, quality)
             out = output_dir / "video.mp4"

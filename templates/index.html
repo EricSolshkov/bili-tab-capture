@@ -379,8 +379,15 @@
       </div>
 
       <div class="stack-actions">
-        <button class="primary-button" id="downloadPdfButton" type="button">下载PDF</button>
-        <button class="secondary-button" id="downloadLongButton" type="button">下载长图</button>
+        <div class="button-row">
+          <button class="secondary-button" id="downloadPdfButton" type="button">下载PDF</button>
+          <button class="secondary-button" id="downloadLongButton" type="button">下载长图</button>
+        </div>
+        <div class="psz-block">
+          <button class="primary-button" id="downloadPszButton" type="button">下载PSZ</button>
+          <p class="psz-hint">PSZ文件可导入 <a href="https://pdf-score.netlify.app" target="_blank"
+              rel="noopener">PDF Score</a> 中，支持自动翻页、伴奏、点击小节跳转、倍速播放、节拍器</p>
+        </div>
         <span class="status-line" id="layoutStatus"></span>
       </div>
       <div class="progress-wrap hidden" id="generateProgressWrap">

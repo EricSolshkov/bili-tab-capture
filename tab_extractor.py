@@ -39,6 +39,12 @@ import bili
 import net_tls
 
 VIDEO_FILE_EXTENSIONS = (".mp4", ".mkv", ".webm", ".mov", ".m4s")
+
+# 缓存目录里那条音轨的文件名（导入 B 站视频时跟着下下来）+ 认得的音频扩展名。
+# **音频扩展名不能落进 VIDEO_FILE_EXTENSIONS**：`find_video_file` 是按扩展名 glob 全目录的，
+# 音频要是叫 `audio.m4s` / `audio.mp4`，就会被当成视频挑走（新下的音频 mtime 更新，必中）。
+AUDIO_FILE_STEM = "audio"
+AUDIO_FILE_EXTENSIONS = (".m4a", ".mp3", ".aac", ".flac", ".ogg", ".oga", ".opus", ".wav")
 BILIBILI_USER_AGENT = (
     "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
     "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36"
@@ -46,9 +52,14 @@ BILIBILI_USER_AGENT = (
 _BILIBILI_BV_RE = re.compile(r"BV[0-9A-Za-z]{10}")
 _BILIBILI_AV_RE = re.compile(r"\bav(\d+)\b", re.IGNORECASE)
 
-# Bilibili is reachable directly; skip any system proxy so the API responds correctly.
-# 必须挂上 net_tls 的 HTTPSHandler：默认 HTTPSHandler 用标准库 CA 路径，macOS/Homebrew
-# 或打包环境下缺中间证书会报 CERTIFICATE_VERIFY_FAILED（输入 BV 号后立即触发）。
+# ⚠️ B 站相关请求**一律走 bili 模块的 curl_cffi 会话**（bili.bili_get / get_json /
+# resolve_short_url）：标准库 urllib 的 TLS 指纹会被 B 站风控判定为脚本，直接返回
+# `HTTP 412 Precondition Failed`（海外 IP 尤其明显，补齐 Cookie 与浏览器头也无效）。
+#
+# 下面这个 urllib opener 目前**没有调用方**，保留以备将来出现非 B 站的 urllib 请求：
+# 它跳过系统代理（B 站可直连，走代理反而异常），并挂上 net_tls 的 HTTPSHandler
+# ——默认 HTTPSHandler 用标准库 CA 路径，macOS/Homebrew 或打包环境下缺中间证书会报
+# CERTIFICATE_VERIFY_FAILED。
 _np_handlers = [urllib.request.ProxyHandler({})]
 _np_tls_context = net_tls.ssl_context()
 if _np_tls_context is not None:
@@ -163,9 +174,11 @@ def is_bilibili_url(value: str) -> bool:
 
 
 def _resolve_url(url: str) -> str:
-    request = urllib.request.Request(url, headers={"User-Agent": BILIBILI_USER_AGENT})
-    with _NO_PROXY_OPENER.open(request, timeout=20) as response:
-        return response.geturl()
+    """展开 b23.tv 短链，返回最终 URL。
+
+    必须走 bili 的 curl_cffi 会话：urllib 的 TLS 指纹会被 B 站风控判为脚本并返回 412。
+    """
+    return bili.resolve_short_url(url)
 
 
 def extract_bilibili_id(url: str) -> Tuple[Optional[str], Optional[int]]:
@@ -198,16 +211,13 @@ def normalize_bilibili_url(value: str) -> str:
 
 
 def _bilibili_api_json(url: str) -> Dict[str, Any]:
-    request = urllib.request.Request(
-        url,
-        headers={
-            "User-Agent": BILIBILI_USER_AGENT,
-            "Referer": "https://www.bilibili.com/",
-        },
-    )
-    with _NO_PROXY_OPENER.open(request, timeout=20) as response:
-        body = response.read()
-    return json.loads(body.decode("utf-8"))
+    """请求 B 站 JSON 接口。
+
+    必须走 bili 的 curl_cffi 会话：标准库 urllib 的 TLS 指纹会被 B 站风控判为脚本，
+    直接返回 `HTTP 412 Precondition Failed`（海外 IP 尤其明显），
+    补齐 Cookie 与整套浏览器头也无效——实测换浏览器指纹立刻 200。
+    """
+    return bili.get_json(url, cookie=bili.read_cookie(), timeout=20)
 
 
 def probe_bilibili_metadata(url: str) -> Tuple[VideoMetadata, Optional[float]]:
@@ -251,21 +261,38 @@ def find_video_file(directory: Path) -> Optional[Path]:
     return candidates[0]
 
 
+def find_audio_file(directory: Path) -> Optional[Path]:
+    """取缓存目录里那条音轨（导入 B 站视频时下下来的 `audio.m4a`），没有就 None。
+
+    只认 `audio.<音频扩展名>` 这个名字，**不会**误捡 `video.m4s` / `<bvid>.mp4`
+    （那些是 VIDEO_FILE_EXTENSIONS，归 `find_video_file` 管）。
+    """
+    directory = Path(directory)
+    for ext in AUDIO_FILE_EXTENSIONS:
+        candidate = directory / f"{AUDIO_FILE_STEM}{ext}"
+        if candidate.is_file() and candidate.stat().st_size > 0:
+            return candidate
+    return None
+
+
 def download_bilibili_video(
     url: str,
     output_dir: Path,
     quality: Optional[int] = None,
+    with_audio: bool = False,
 ) -> Path:
     """下载 B 站视频。所有平台统一走 bili 模块（纯 Python 实现）。
 
     bili 模块需要已登录的 cookie 才能拿更高清晰度；未登录时按接口默认清晰度。
+    `with_audio=True` 时顺带下一条 DASH 音频轨到 `output_dir/audio.m4a`
+    （导出 psz 要把它放进包里当伴奏；下不到就只是没有音频，不影响视频）。
     """
     output_dir = Path(output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
 
     cookie = bili.read_cookie()
     return bili.download_bilibili_video_native(
-        url, output_dir, quality=quality, cookie=cookie
+        url, output_dir, quality=quality, cookie=cookie, with_audio=with_audio
     )
 
 
@@ -1783,6 +1810,11 @@ def layout_rows(
     return rows
 
 
+# 落盘 PDF 用的分辨率：PIL 据此把像素换成 PDF 点（页面边长 = 像素 × 72 / 150）。
+# PDF Score 的坐标系也是 pt，导出 psz 时要用同一个数换算，所以这里只留这一个字面量。
+PDF_RESOLUTION = 150.0
+
+
 def build_pdf_from_images(
     images_dir: Path,
     output_pdf: Path,
@@ -1800,10 +1832,15 @@ def build_pdf_from_images(
     title_lines: Optional[List[str]] = None,
     title_spacing: Optional[int] = None,
     source_url: Optional[str] = None,
+    geometry: Optional[Dict[str, Any]] = None,
 ):
     """
     按小节横向排版生成 PDF：每张（已处理好的）图片从左到右排列、放满一行换行，
     超过一页时翻页。第一页顶部是标题/作者页头，每页底部有页码。
+
+    `geometry` 不为 None 时（原地清空后）填入这次排版的**像素坐标**：页面尺寸，以及每页每行的
+    `{y, h, bars}`（行顶 y、行高 h、这一行各条竖条的左边界 x，最后再补最右一条）。
+    「导出 psz」靠它把同一份排版换算成 PDF 点坐标写进 `score.json` —— 不要在别处重算排版。
     """
     image_paths = sorted(images_dir.glob("*.png"))
     if not image_paths:
@@ -1835,16 +1872,33 @@ def build_pdf_from_images(
         text_color=text_color, title_spacing=title_spacing,
     )
 
+    # 与 pages 一一对应：每页记下这一页各行的落点（像素），供导出 psz 换算成 pt。
+    geo_pages: List[List[Dict[str, Any]]] = [[]]
+
     for row, row_h in rows:
         if current_y + row_h + margin + footer_height > page_height:
             pages.append(page)
             page = Image.new("RGB", (page_width, page_height), bg_color)
             current_y = margin
+            geo_pages.append([])
+        if row:
+            # 行内各竖条首尾相接（layout_rows 里 px += w），所以小节线就是每条竖条的左边界 + 最后一条的右边界。
+            bars = [item[1] for item in row]
+            bars.append(row[-1][1] + row[-1][2])
+            geo_pages[-1].append({"y": current_y, "h": row_h, "bars": bars})
         for img, x, w, h, dy in row:
             page.paste(img, (x, current_y + dy))
         current_y += row_h + spacing
 
     pages.append(page)
+
+    if geometry is not None:
+        geometry.clear()
+        geometry.update({
+            "page_width": page_width,
+            "page_height": page_height,
+            "pages": geo_pages,
+        })
 
     page_font = load_font(26)
     footer_color = hex_to_rgb(text_color)
@@ -1865,10 +1919,75 @@ def build_pdf_from_images(
         output_pdf,
         save_all=True,
         append_images=pages[1:],
-        resolution=150.0,
+        resolution=PDF_RESOLUTION,
     )
 
     return len(pages)
+
+
+def _px_to_pt(value: float) -> float:
+    return round(float(value) * 72.0 / PDF_RESOLUTION, 2)
+
+
+def build_score_meta(
+    geometry: Dict[str, Any], title: str = "", audio: Optional[Dict[str, Any]] = None
+) -> Optional[Dict[str, Any]]:
+    """把 `build_pdf_from_images` 记下的排版几何写成 PDF Score 的 `score.json`。
+
+    · 坐标一律 **PDF 点（pt）、y 轴向上**：行 `y0` 取上沿（值大）、`y1` 取下沿（值小）。
+    · 一行里相邻两条小节线之间是一个小节 —— BiliTabCapture 的 final 竖条本来就是按小节线切的，
+      所以每条竖条正好一个小节，行的首尾两条竖线都要标（否则首尾小节会缺）。
+    · `pages` 的顺序 / 张数必须与同一份 PDF 完全一致，PDF Score 会拿 PDF 的真实页数与尺寸覆盖它们。
+    · `audio` 是包里那条音轨的 `{name, type}`（没有音频就给 None），只有标题 + 音频对齐要写时也传它。
+
+    **每一行都只有两条小节线（= 每行一个小节）时**，那份 `systems/bars` 什么都没描述出来：
+      · **有音频** → 仍旧写一份 score.json，但 `pages` 留空（只带标题与音频对齐）——
+        PDF Score 的自动识别是无条件跑的、只跳过已经有行的页，所以留空就等于让它自己认小节线；
+      · **没有音频** → 返回 None，包里就只有 PDF。
+    """
+    row_list = [row for rows in (geometry.get("pages") or []) for row in rows]
+    has_bars = any(len(row.get("bars") or []) > 2 for row in row_list)
+    if not has_bars and not audio:
+        return None
+
+    pages: List[Dict[str, Any]] = []
+    if has_bars:
+        page_w = _px_to_pt(geometry.get("page_width", 0))
+        page_h_px = float(geometry.get("page_height", 0))
+        for p_index, rows in enumerate(geometry.get("pages") or [], start=1):
+            systems: List[Dict[str, Any]] = []
+            for r_index, row in enumerate(rows, start=1):
+                y = float(row.get("y", 0.0))
+                h = float(row.get("h", 0.0))
+                systems.append({
+                    "id": f"sy_{p_index}_{r_index}",
+                    "y0": _px_to_pt(page_h_px - y),
+                    "y1": _px_to_pt(page_h_px - (y + h)),
+                    "bars": [
+                        {"id": f"br_{p_index}_{r_index}_{b_index}", "x": _px_to_pt(x)}
+                        for b_index, x in enumerate(row.get("bars") or [], start=1)
+                    ],
+                })
+            pages.append({"width": page_w, "height": _px_to_pt(page_h_px), "systems": systems})
+
+    return {
+        "version": 1,
+        "title": title or "",
+        "tags": [],
+        "audio": {
+            "name": (audio or {}).get("name", ""),
+            "type": (audio or {}).get("type", ""),
+            # 时长交给 PDF Score 自己探测（这边不解码音频），峰也一样现算。
+            "duration": None,
+            # 音频从 0 秒对齐第 1 小节：下下来的就是整条音轨，不做偏移。
+            "startOffset": 0,
+            "startPosition": 1,
+        },
+        "pages": pages,
+        # 空段落表：PDF Score 会补一条 120 BPM 4/4 的「开头」段落，BiliTabCapture 拿不到速度信息。
+        "segments": [],
+        "jumps": [],
+    }
 
 
 def build_long_image(

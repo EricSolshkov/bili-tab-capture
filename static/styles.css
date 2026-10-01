@@ -2083,7 +2083,7 @@ button:disabled {
   color: var(--accent);
 }
 
-/* 下载按钮：各占一行、顶满容器 */
+/* 下载按钮：PDF / 长图 各占半行，psz 单独一行（它是主按钮） */
 .stack-actions {
   display: flex;
   flex-direction: column;
@@ -2094,6 +2094,36 @@ button:disabled {
 .stack-actions .primary-button,
 .stack-actions .secondary-button {
   width: 100%;
+}
+
+.stack-actions .button-row {
+  display: flex;
+  gap: 12px;
+}
+
+/* flex-basis 0 压过上面那条 width: 100%，窄屏媒体查询里的 width: 100% 同理 */
+.stack-actions .button-row .secondary-button {
+  flex: 1 1 0;
+  width: auto;
+  min-width: 0;
+}
+
+/* psz 按钮 + 它下面那行小字说明：单独成块，免得说明被 .stack-actions 的 gap 推远 */
+.psz-block {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.psz-hint {
+  margin: 0;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.6;
+}
+
+.psz-hint a {
+  color: var(--accent);
 }
 
 /* 插入弹窗 */
