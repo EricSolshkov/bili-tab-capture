@@ -120,7 +120,7 @@ class BarlistTests(unittest.TestCase):
 
             cache = root / "cache"
             def download(url, output, **kwargs):
-                target = Path(output) / "video.mp4"
+                target = Path(output) / video.name
                 target.parent.mkdir(parents=True, exist_ok=True)
                 shutil.copy2(video, target)
                 return target
