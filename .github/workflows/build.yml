@@ -1,0 +1,90 @@
+name: Test and build desktop apps
+on:
+  push:
+    branches: [main]
+    tags: ["v*"]
+  pull_request:
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: desktop-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-2022
+            artifact: windows-x64
+          - os: macos-15-intel
+            artifact: macos-x64
+          - os: macos-15
+            artifact: macos-arm64
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
+    env:
+      BTAB_NO_BROWSER: "1"
+      PYTHONUTF8: "1"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+      - run: python -m venv .venv
+      - name: Install test dependencies
+        shell: bash
+        run: |
+          if [ "$RUNNER_OS" = Windows ]; then PY=.venv/Scripts/python; else PY=.venv/bin/python; fi
+          "$PY" -m pip install -r requirements.txt
+          "$PY" -m unittest discover -s tests -v
+          "$PY" -m py_compile app.py barlist.py score_rows.py bili.py tab_extractor.py pdf_render.py runtime_paths.py
+      - name: JavaScript checks
+        run: |
+          node --check static/app.js
+          node --check static/score_rows.js
+          node --check static/score_sequence.js
+          node --test tests/score_sequence.test.cjs
+      - name: Build Windows
+        if: runner.os == 'Windows'
+        shell: cmd
+        run: build_exe.bat
+      - name: Build macOS
+        if: runner.os == 'macOS'
+        run: bash build_mac.sh
+      - name: Smoke-test packaged application
+        shell: bash
+        run: |
+          if [ "$RUNNER_OS" = Windows ]; then EXE=dist/BiliTabCapture.exe; else EXE=dist/BiliTabCapture_mac; fi
+          python scripts/smoke_executable.py "$EXE"
+      - name: Package macOS executable (preserve execute permission)
+        if: runner.os == 'macOS'
+        run: tar -czf dist/BiliTabCapture_${{ matrix.artifact }}.tar.gz -C dist BiliTabCapture_mac
+      - uses: actions/upload-artifact@v4
+        with:
+          name: BiliTabCapture-${{ matrix.artifact }}
+          path: |
+            dist/*.exe
+            dist/*.tar.gz
+          if-no-files-found: error
+          retention-days: 30
+  release:
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: build
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: release-assets
+          merge-multiple: true
+      - uses: softprops/action-gh-release@v2
+        with:
+          files: release-assets/*
+          generate_release_notes: true

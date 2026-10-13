@@ -99,3 +99,9 @@ python app.py
 | Windows | build_exe.bat | dist/BiliTabCapture.exe |
 | macOS   | build_mac.sh  | dist/BiliTabCapture_mac |
 
+
+### 自动构建与下载
+
+GitHub Actions 的 `Test and build desktop apps` 在 main 推送、PR 和手动运行时测试并打包 Windows x64、macOS Intel x64 和 Apple Silicon arm64。成功后在该次运行的 Artifacts 下载对应包（保存 30 天）；macOS 使用 tar.gz 保留可执行权限，解压后运行 `BiliTabCapture_mac`。产物未做代码签名或公证。
+
+推送 `v*` 标签时，全部平台通过后自动把文件附到同名 GitHub Release。普通 main 推送只生成构建产物，不创建版本发布。构建复用仓库的 `build_exe.bat` / `build_mac.sh`；Windows 脚本在 CI 环境不等待按键。不需要新增 PAT 或手工上传文件。

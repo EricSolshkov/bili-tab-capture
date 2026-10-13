@@ -57,11 +57,11 @@ echo          browser automatically. No Python needed.
 echo.
 echo          On first run it creates BiliTabCapture_cache/ next to the exe to
 echo          keep cache and the Bilibili login cookie.
-pause
+if not defined CI pause
 exit /b 0
 
 :error
 echo.
 echo [ERROR] Build failed. See the log above.
-pause
+if not defined CI pause
 exit /b 1
