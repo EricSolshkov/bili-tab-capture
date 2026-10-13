@@ -44,8 +44,8 @@ class BarlistTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temp:
             root = Path(temp)
             for strings in range(4, 8):
-                video = root / f"{strings}.mp4"
-                writer = cv2.VideoWriter(str(video), cv2.VideoWriter_fourcc(*"mp4v"), 20, (400, 200))
+                video = root / f"{strings}.avi"
+                writer = cv2.VideoWriter(str(video), cv2.CAP_OPENCV_MJPEG, cv2.VideoWriter_fourcc(*"MJPG"), 20, (400, 200))
                 self.assertTrue(writer.isOpened())
                 frame = np.full((200, 400, 3), 255, np.uint8)
                 for index in range(strings):
@@ -98,8 +98,8 @@ class BarlistTests(unittest.TestCase):
     def test_capture_missing_bars_and_end_to_end_restore(self):
         with tempfile.TemporaryDirectory() as temp:
             root = Path(temp)
-            video = root / "fixture.mp4"
-            writer = cv2.VideoWriter(str(video), cv2.VideoWriter_fourcc(*"mp4v"), 20, (400, 200))
+            video = root / "fixture.avi"
+            writer = cv2.VideoWriter(str(video), cv2.CAP_OPENCV_MJPEG, cv2.VideoWriter_fourcc(*"MJPG"), 20, (400, 200))
             self.assertTrue(writer.isOpened())
             # First two bars deliberately identical. Third blank. Fourth outside duration.
             for frame_index in range(60):

@@ -10,6 +10,7 @@ import time
 import uuid
 import zipfile
 import os
+import sys
 import webbrowser
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
@@ -2944,6 +2945,11 @@ def preview_file(filename: str):
 
 
 if __name__ == "__main__":
+    # Frozen Windows apps can inherit a non-Unicode pipe despite PYTHONUTF8.
+    # Keep Chinese startup messages from crashing before the HTTP server starts.
+    for stream in (sys.stdout, sys.stderr):
+        if hasattr(stream, "reconfigure"):
+            stream.reconfigure(encoding="utf-8", errors="backslashreplace")
     ensure_cache_dirs()
     # 删除“孤儿”中间产物：某 job/source 生命周期已结束即不再需要(bv/local/img 持久缓存不受影响)
     try:
