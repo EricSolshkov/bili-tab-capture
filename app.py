@@ -15,6 +15,8 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
 import bili
+import barlist
+import score_rows
 import pdf_render
 from pdf_render import PDF_DPI_DEFAULT, PdfRenderError
 from runtime_paths import data_dir, resource_dir
@@ -73,6 +75,36 @@ def bilibili_cache_dir(bvid: str) -> Path:
 
 def local_cache_dir(file_hash: str) -> Path:
     return CACHE_DIR / "local" / file_hash
+
+
+def reuse_barlist_media(task, destination):
+    """Isolate task edits while reusing already-downloaded media for the same part."""
+    v = task["video"]
+    base = CACHE_DIR / "bv"
+    candidates = [base / f"{v['bvid']}_cid{v['cid']}"]
+    if v["page"] == 1:
+        candidates.append(base / v["bvid"])
+    candidates.extend(base.glob(f"{v['bvid']}_cid{v['cid']}_bl*"))
+    for directory in candidates:
+        if directory == destination:
+            continue
+        with STORE_LOCK:
+            downloading = any(s.get("cache_dir") == str(directory) and
+                              s.get("download", {}).get("status") == "downloading" for s in SOURCES.values())
+        if downloading:
+            continue
+        video = find_video_file(directory)
+        if video is None:
+            continue
+        paths = [video, directory / "audio.m4a", directory / ".dlqh.txt", directory / ".dlqn.txt"]
+        for path in paths:
+            target = destination / path.name
+            if path.is_file() and not target.exists():
+                try:
+                    os.link(path, target)
+                except OSError:
+                    shutil.copy2(path, target)
+        return
 
 
 def image_cache_dir(file_hash: str) -> Path:
@@ -489,6 +521,9 @@ def run_capture_job(job_id: str, payload: Dict[str, Any]) -> None:
     with contextlib.redirect_stdout(log_writer), contextlib.redirect_stderr(log_writer):
         try:
             source = source_or_error(payload["source_id"])
+            if source.get("barlist"):
+                run_barlist_capture(job_id, source, payload)
+                return
             start_sec = parse_float(payload.get("start"), "start", 0.0)
             end_sec = parse_optional_float(payload.get("end"), "end")
             if start_sec < 0:
@@ -674,6 +709,150 @@ def run_capture_job(job_id: str, payload: Dict[str, Any]) -> None:
                 updated_at=time.time(),
             )
             print(f"错误：{exc}")
+
+
+def run_barlist_capture(job_id, source, payload):
+    task = source["barlist"]
+    options = ExtractionOptions(
+        crop_y_start_ratio=parse_float(payload.get("crop_y_start"), "crop_y_start", 0),
+        crop_y_end_ratio=parse_float(payload.get("crop_y_end"), "crop_y_end", 1),
+        crop_x_start_ratio=parse_float(payload.get("crop_x_start"), "crop_x_start", 0),
+        crop_x_end_ratio=parse_float(payload.get("crop_x_end"), "crop_x_end", 1))
+    validate_crop_ratios(options.crop_y_start_ratio, options.crop_y_end_ratio)
+    validate_crop_x_ratios(options.crop_x_start_ratio, options.crop_x_end_ratio)
+    cache_dir = Path(source["cache_dir"])
+    crops_dir = cache_dir / "crops"
+    batch_dir = crops_dir / job_id
+    update_job(job_id, status="running", phase="extracting", crops_dir=str(crops_dir),
+               barlist=task, bar_records=[], cache_dir=str(cache_dir))
+
+    def progress(done, total, kept):
+        update_job(job_id, stats={"frames_checked": done, "captures_kept": kept,
+                                  "bars_total": total, "bars_checked": done})
+
+    captures, records = barlist.capture_bars(source["video_path"], batch_dir, task, options, progress)
+    for record in records:
+        for candidate in record["candidates"]:
+            candidate["file"] = f"{job_id}/{candidate['file']}"
+            candidate["url"] = f"/api/captures/{job_id}/{candidate['file']}"
+        if record.get("file"):
+            record["file"] = f"{job_id}/{record['file']}"
+    # Selected captures refer to the same candidate objects as records.
+    report = barlist.coverage(task, records)
+    params = {name: getattr(options, name + "_ratio") for name in
+              ("crop_x_start", "crop_x_end", "crop_y_start", "crop_y_end")}
+    saved = load_state_json(cache_dir) or {}
+    saved.update(barlist=task, bar_records=records, captures=captures, capture_params=params,
+                 metadata=source["metadata"], maxStage=3)
+    saved.pop("images", None)
+    saved.pop("score_rows", None)
+    save_state_json(cache_dir, saved)
+    update_job(job_id, status="done", phase="done", captures=captures, bar_records=records,
+               coverage=report, metadata=source["metadata"], capture_params=params,
+               video_path=source["video_path"],
+               stats={"captures_kept": len(captures), "bars_checked": len(records), "bars_total": len(records)})
+
+
+@app.get("/api/barlist/<source_id>")
+def barlist_status(source_id):
+    try:
+        source = source_or_error(source_id)
+        task = source.get("barlist")
+        if not task:
+            return json_error("此视频没有 barlist 任务", 404)
+        saved = load_state_json(Path(source["cache_dir"])) or {}
+        report = barlist.coverage(task, saved.get("bar_records", []), saved.get("images"), Path(source["cache_dir"]) / "crops")
+        return jsonify({"task": task, "coverage": report, "records": saved.get("bar_records", [])})
+    except ValueError as exc:
+        return json_error(str(exc))
+
+
+@app.route("/api/score_rows/<source_id>", methods=["GET", "POST"])
+def score_row_workspace(source_id):
+    try:
+        source = source_or_error(source_id)
+        task = source.get("barlist")
+        if not task:
+            raise ValueError("整行工作台需要 barlist 任务")
+        cache = Path(source["cache_dir"])
+        saved = load_state_json(cache) or {}
+        crops = cache / "crops"
+        payload = request.get_json(silent=True) or {}
+        strings = barlist.number(payload.get("stringCount", saved.get("score_string_count", task["instrument"]["stringCount"])), "弦数", 4, 7, True)
+        if request.method == "POST":
+            if payload.get('action') == 'auto':
+                mapping_task = {**task, 'instrument': {**task['instrument'], 'stringCount': strings}}
+                rows = score_rows.auto_associate(score_rows.propose_rows(saved, crops, strings), saved, mapping_task, crops)
+            else:
+                rows = score_rows.validate_rows(payload.get("rows"), saved, task, crops)
+            if payload.get("export"):
+                export_task = {**task, "instrument": {**task["instrument"], "stringCount": strings}}
+                if strings != task["instrument"]["stringCount"]:
+                    export_task["instrument"]["tuningMidi"] = None
+                return send_file(score_rows.export_bars(rows, export_task, crops), mimetype="application/zip",
+                                 as_attachment=True, download_name=f"{task['taskId']}-bars.zip")
+            applied = None
+            if payload.get("action") == "apply":
+                applied, report = score_rows.layout_cards(rows, task, crops)
+            # Serialize with the existing card-state writer so neither view loses the other.
+            with STORE_LOCK:
+                latest = load_state_json(cache) or {}
+                latest["score_rows"] = rows
+                latest["score_string_count"] = strings
+                if applied is not None:
+                    latest["images"] = applied
+                    latest["maxStage"] = max(3, latest.get("maxStage", 3))
+                save_state_json(cache, latest)
+            if applied is not None:
+                return jsonify(images=applied, coverage=report)
+        else:
+            rows = saved.get("score_rows")
+            if rows is None:
+                rows = score_rows.propose_rows(saved, crops, strings)
+                mapping_task = {**task, 'instrument': {**task['instrument'], 'stringCount': strings}}
+                rows = score_rows.auto_associate(rows, saved, mapping_task, crops)
+            else:
+                for row in rows:
+                    row['slots'] = score_rows.row_slots(row, task)
+                    path = crops / row["file"]
+                    if path.is_file():
+                        with Image.open(path) as image:
+                            w, h = image.size
+                            row["detection"] = score_rows.suggest_lines(
+                                image.crop((0, round(row["top"]*h), w, round(row["bottom"]*h))), strings)
+        return jsonify(rows=rows, stringCount=strings, coverage=score_rows.row_coverage(rows, task, crops))
+    except (ValueError, OSError) as exc:
+        return json_error(str(exc))
+
+
+@app.post("/api/score_rows/<source_id>/detect")
+def score_row_detect(source_id):
+    try:
+        source = source_or_error(source_id)
+        task = source["barlist"]
+        cache = Path(source["cache_dir"])
+        saved = load_state_json(cache) or {}
+        row = score_rows.validate_rows([request.get_json(force=True)], saved, task, cache / "crops")[0]
+        with Image.open(cache / "crops" / row["file"]) as image:
+            w, h = image.size
+            image = image.crop((0, round(row["top"]*h), w, round(row["bottom"]*h)))
+            strings = barlist.number(request.json.get("stringCount", task["instrument"]["stringCount"]), "弦数", 4, 7, True)
+            result = score_rows.suggest_lines(image, strings)
+        return jsonify(result)
+    except (ValueError, KeyError, OSError) as exc:
+        return json_error(str(exc))
+
+
+@app.get("/api/source_video/<source_id>")
+def source_video(source_id):
+    try:
+        source = source_or_error(source_id)
+        path = source.get("video_path") or source.get("path")
+        if source.get("type") in IMAGE_LIKE_TYPES or not path or not Path(path).is_file():
+            raise ValueError("视频尚未就绪")
+        return send_file(path, mimetype="video/mp4", conditional=True)
+    except ValueError as exc:
+        return json_error(str(exc))
 
 
 def start_image_capture(source: Dict[str, Any], payload: Dict[str, Any]):
@@ -887,6 +1066,9 @@ def make_cached_job(source_id: str, cache_dir: Path, state: Dict[str, Any]) -> s
             "stats": {"captures_kept": len(captures)},
             "captures": captures,
             "metadata": state.get("metadata"),
+            "barlist": state.get("barlist"),
+            "bar_records": state.get("bar_records", []),
+            "coverage": barlist.coverage(state["barlist"], state.get("bar_records", []), state.get("images"), cache_dir / "crops") if state.get("barlist") else None,
             "error": None,
             "pdf_url": None,
             "crops_dir": str(cache_dir / "crops"),
@@ -942,6 +1124,7 @@ def safe_upload_name(raw_name: str, suffix: str) -> str:
     return cleaned
 
 
+@app.post("/api/barlist/import")
 @app.post("/api/import")
 def import_source():
     ensure_cache_dirs()
@@ -949,12 +1132,33 @@ def import_source():
     upload = request.files.get("file")
 
     try:
+        task = None
+        if request.path == "/api/barlist/import":
+            if request.content_length and request.content_length > barlist.MAX_BYTES:
+                return json_error("barlist 文件超过 2 MiB", 413)
+            task = barlist.normalize_task(request.get_json(silent=True))
+        elif upload and upload.filename.lower().endswith(".json"):
+            content = upload.stream.read(barlist.MAX_BYTES + 1)
+            if len(content) > barlist.MAX_BYTES:
+                return json_error("barlist 文件超过 2 MiB")
+            task = barlist.normalize_task(json.loads(content.decode("utf-8-sig")))
+            upload = None
+        if task:
+            v = task["video"]
+            bvid = f"https://www.bilibili.com/video/{v['bvid']}?p={v['page']}"
         if bvid:
             full_url = normalize_bilibili_url(bvid)
             metadata, duration = probe_bilibili_metadata(full_url)
             source_id = uuid.uuid4().hex
             bvid_id, aid = extract_bilibili_id(full_url)
-            cache_dir = bilibili_cache_dir(bvid_id or f"av{aid}")
+            cache_key = bvid_id or f"av{aid}"
+            if task:
+                _, part = bili.resolve_video_part(full_url, bili.read_cookie(), task["video"]["cid"])
+                cache_key += f"_cid{part['cid']}_bl{barlist.task_digest(task)}"
+            elif "?p=" in full_url:
+                _, part = bili.resolve_video_part(full_url, bili.read_cookie())
+                cache_key += f"_cid{part['cid']}"
+            cache_dir = bilibili_cache_dir(cache_key)
             # 提前写占位 state(含标题等元数据)：即使只下载还没截图，也让历史记录能看到该目录
             ensure_placeholder_state(cache_dir, metadata_to_dict(metadata))
             source = {
@@ -966,14 +1170,22 @@ def import_source():
                 "cache_dir": str(cache_dir),
                 "download": {"status": "idle", "message": None},
             }
+            if task:
+                source["barlist"] = task
+                saved = load_state_json(cache_dir) or {}
+                saved["barlist"] = task
+                save_state_json(cache_dir, saved)
             state = load_state_json(cache_dir)
             cached_video = find_video_file(cache_dir)
+            if task and cached_video is None:
+                reuse_barlist_media(task, cache_dir)
+                cached_video = find_video_file(cache_dir)
             has_img = _has_images(cache_dir, state)
             has_par = _has_params(state)
             if has_img or has_par:
                 # 有可恢复进度(截图或只存过第2步参数)即命中：交前端弹窗选“恢复/从新开始”。
                 source["has_cache"] = True
-                source["cache"] = {"cache_dir": str(cache_dir), "type": "bilibili", "key": bvid_id or f"av{aid}", "title": metadata.display_title or metadata.raw_title}
+                source["cache"] = {"cache_dir": str(cache_dir), "type": "bilibili", "key": cache_key, "title": metadata.display_title or metadata.raw_title}
                 source["params2"] = read_capture_prefs(state)
                 if cached_video is not None:
                     source["download"]["status"] = "done"
@@ -987,6 +1199,8 @@ def import_source():
                 source["download"]["status"] = "done"
             else:
                 source["download"]["status"] = "downloading"
+                with STORE_LOCK:
+                    SOURCES[source_id] = source
                 threading.Thread(
                     target=run_bilibili_download,
                     args=(source_id, full_url, cache_dir, bvid_id or f"av{aid}"),
@@ -1146,6 +1360,9 @@ def import_source():
         with STORE_LOCK:
             SOURCES[source_id] = source
 
+        if task:
+            source["coverage"] = barlist.coverage(task, (state or {}).get("bar_records", []),
+                                                  (state or {}).get("images"), cache_dir / "crops")
         return jsonify(source)
     except ValueError as exc:
         return json_error(str(exc), 400)
@@ -1395,6 +1612,7 @@ _BILI_COVER_TTL = 600      # 秒
 
 def _bilibili_real_cover(key: str) -> Optional[bytes]:
     """拉取 B 站视频真实封面(pic)到内存(短 TTL)。失败返回 None。"""
+    key = extract_bilibili_id(key)[0] or key
     import time as _t
     now = _t.time()
     cached = _BILI_COVER_CACHE.get(key)
@@ -1573,6 +1791,9 @@ def api_history_restore():
         }
     # 截图参数(第2步)一并带出（含占位/旧版无则回退默认）
     source["params2"] = read_capture_prefs(state)
+    if (state or {}).get("barlist"):
+        source["barlist"] = state["barlist"]
+        source["coverage"] = barlist.coverage(state["barlist"], state.get("bar_records", []), state.get("images"), cache_dir / "crops")
     with STORE_LOCK:
         SOURCES[source_id] = source
     return jsonify(source)
@@ -1626,29 +1847,30 @@ def save_state():
         if not cache_dir_str:
             return json_error("该任务没有缓存目录。", 409)
         cache_dir = Path(cache_dir_str)
-        state = load_state_json(cache_dir) or {}
-        state.setdefault("images", [])
-        if payload.get("images") is not None:
-            # 完整列表（结构性变更：分割/合并/插入/排序/删除等）。
-            state["images"] = payload["images"]
-        elif payload.get("image") is not None:
-            # 单张图片的增量补丁（裁剪/小节线/隐藏）。
-            patch = payload["image"]
-            target = next((img for img in state["images"] if img.get("file") == patch.get("file")), None)
-            if target is None:
-                state["images"].append(patch)
-            else:
-                if "crop" in patch:
-                    target["crop"] = patch["crop"]
-                if "measures" in patch:
-                    target["measures"] = patch["measures"]
-                if "hidden" in patch:
-                    target["hidden"] = patch["hidden"]
-        if payload.get("layout") is not None:
-            state["layout"] = payload["layout"]
-        if payload.get("maxStage") is not None:
-            state["maxStage"] = payload["maxStage"]
-        save_state_json(cache_dir, state)
+        with STORE_LOCK:
+            state = load_state_json(cache_dir) or {}
+            state.setdefault("images", [])
+            if payload.get("images") is not None:
+                # 完整列表（结构性变更：分割/合并/插入/排序/删除等）。
+                state["images"] = payload["images"]
+            elif payload.get("image") is not None:
+                # 单张图片的增量补丁（裁剪/小节线/隐藏）。
+                patch = payload["image"]
+                target = next((img for img in state["images"] if img.get("file") == patch.get("file")), None)
+                if target is None:
+                    state["images"].append(patch)
+                else:
+                    if "crop" in patch:
+                        target["crop"] = patch["crop"]
+                    if "measures" in patch:
+                        target["measures"] = patch["measures"]
+                    if "hidden" in patch:
+                        target["hidden"] = patch["hidden"]
+            if payload.get("layout") is not None:
+                state["layout"] = payload["layout"]
+            if payload.get("maxStage") is not None:
+                state["maxStage"] = payload["maxStage"]
+            save_state_json(cache_dir, state)
         return jsonify({"ok": True})
     except Exception as exc:
         return json_error(str(exc), 500)
@@ -1785,6 +2007,14 @@ def start_captures():
     payload = request.get_json(force=True, silent=True) or {}
     try:
         source = source_or_error(payload.get("source_id"))
+        if source.get("barlist"):
+            if source.get("download", {}).get("status") != "done":
+                return json_error("请等待视频下载完成后取图", 409)
+            with STORE_LOCK:
+                busy = any(j.get("cache_dir") == source.get("cache_dir") and
+                           j.get("status") in ("queued", "running") for j in JOBS.values())
+            if busy:
+                return json_error("此小节任务正在取图，请等待完成", 409)
         if source["type"] in IMAGE_LIKE_TYPES:
             return start_image_capture(source, payload)
         start_sec = parse_float(payload.get("start"), "start", 0.0)
@@ -1806,6 +2036,7 @@ def start_captures():
             JOBS[job_id] = {
                 "id": job_id,
                 "source_id": payload.get("source_id"),
+                "cache_dir": source.get("cache_dir"),
                 "status": "queued",
                 "phase": "queued",
                 "logs": [],

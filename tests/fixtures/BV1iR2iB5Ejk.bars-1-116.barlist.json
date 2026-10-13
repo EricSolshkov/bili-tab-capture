@@ -1,0 +1,1411 @@
+{
+  "schema": "bili-tab-capture/barlist",
+  "version": 1,
+  "taskId": "BV1iR2iB5Ejk-25923754081-1-116",
+  "revision": 1,
+  "video": {
+    "bvid": "BV1iR2iB5Ejk",
+    "cid": "25923754081",
+    "page": 1,
+    "title": "arrow - full video / bars 1-116"
+  },
+  "instrument": {
+    "stringCount": 5,
+    "tuningMidi": null,
+    "capo": 0
+  },
+  "bars": [
+    {
+      "id": "bar-1",
+      "order": 1,
+      "number": 1,
+      "start": 0.177,
+      "end": 1.777,
+      "timeSignature": [
+        4,
+        4
+      ],
+      "quarterBpm": 150.0
+    },
+    {
+      "id": "bar-2",
+      "order": 2,
+      "number": 2,
+      "start": 1.777,
+      "end": 3.377,
+      "timeSignature": [
+        4,
+        4
+      ],
+      "quarterBpm": 150.0
+    },
+    {
+      "id": "bar-3",
+      "order": 3,
+      "number": 3,
+      "start": 3.377,
+      "end": 4.977,
+      "timeSignature": [
+        4,
+        4
+      ],
+      "quarterBpm": 150.0
+    },
+    {
+      "id": "bar-4",
+      "order": 4,
+      "number": 4,
+      "start": 4.977,
+      "end": 6.577,
+      "timeSignature": [
+        4,
+        4
+      ],
+      "quarterBpm": 150.0
+    },
+    {
+      "id": "bar-5",
+      "order": 5,
+      "number": 5,
+      "start": 6.577,
+      "end": 8.177,
+      "timeSignature": [
+        4,
+        4
+      ],
+      "quarterBpm": 150.0
+    },
+    {
+      "id": "bar-6",
+      "order": 6,
+      "number": 6,
+      "start": 8.177,
+      "end": 9.777,
+      "timeSignature": [
+        4,
+        4
+      ],
+      "quarterBpm": 150.0
+    },
+    {
+      "id": "bar-7",
+      "order": 7,
+      "number": 7,
+      "start": 9.777,
+      "end": 11.377,
+      "timeSignature": [
+        4,
+        4
+      ],
+      "quarterBpm": 150.0
+    },
+    {
+      "id": "bar-8",
+      "order": 8,
+      "number": 8,
+      "start": 11.377,
+      "end": 12.977,
+      "timeSignature": [
+        4,
+        4
+      ],
+      "quarterBpm": 150.0
+    },
+    {
+      "id": "bar-9",
+      "order": 9,
+      "number": 9,
+      "start": 12.977,
+      "end": 14.577,
+      "timeSignature": [
+        4,
+        4
+      ],
+      "quarterBpm": 150.0
+    },
+    {
+      "id": "bar-10",
+      "order": 10,
+      "number": 10,
+      "start": 14.577,
+      "end": 16.177,
+      "timeSignature": [
+        4,
+        4
+      ],
+      "quarterBpm": 150.0
+    },
+    {
+      "id": "bar-11",
+      "order": 11,
+      "number": 11,
+      "start": 16.177,
+      "end": 17.777,
+      "timeSignature": [
+        4,
+        4
+      ],
+      "quarterBpm": 150.0
+    },
+    {
+      "id": "bar-12",
+      "order": 12,
+      "number": 12,
+      "start": 17.777,
+      "end": 19.377,
+      "timeSignature": [
+        4,
+        4
+      ],
+      "quarterBpm": 150.0
+    },
+    {
+      "id": "bar-13",
+      "order": 13,
+      "number": 13,
+      "start": 19.377,
+      "end": 20.977,
+      "timeSignature": [
+        4,
+        4
+      ],
+      "quarterBpm": 150.0
+    },
+    {
+      "id": "bar-14",
+      "order": 14,
+      "number": 14,
+      "start": 20.977,
+      "end": 22.577,
+      "timeSignature": [
+        4,
+        4
+      ],
+      "quarterBpm": 150.0
+    },
+    {
+      "id": "bar-15",
+      "order": 15,
+      "number": 15,
+      "start": 22.577,
+      "end": 24.177,
+      "timeSignature": [
+        4,
+        4
+      ],
+      "quarterBpm": 150.0
+    },
+    {
+      "id": "bar-16",
+      "order": 16,
+      "number": 16,
+      "start": 24.177,
+      "end": 25.777,
+      "timeSignature": [
+        4,
+        4
+      ],
+      "quarterBpm": 150.0
+    },
+    {
+      "id": "bar-17",
+      "order": 17,
+      "number": 17,
+      "start": 25.777,
+      "end": 27.377,
+      "timeSignature": [
+        4,
+        4
+      ],
+      "quarterBpm": 150.0
+    },
+    {
+      "id": "bar-18",
+      "order": 18,
+      "number": 18,
+      "start": 27.377,
+      "end": 28.977,
+      "timeSignature": [
+        4,
+        4
+      ],
+      "quarterBpm": 150.0
+    },
+    {
+      "id": "bar-19",
+      "order": 19,
+      "number": 19,
+      "start": 28.977,
+      "end": 30.577,
+      "timeSignature": [
+        4,
+        4
+      ],
+      "quarterBpm": 150.0
+    },
+    {
+      "id": "bar-20",
+      "order": 20,
+      "number": 20,
+      "start": 30.577,
+      "end": 32.177,
+      "timeSignature": [
+        4,
+        4
+      ],
+      "quarterBpm": 150.0
+    },
+    {
+      "id": "bar-21",
+      "order": 21,
+      "number": 21,
+      "start": 32.177,
+      "end": 33.777,
+      "timeSignature": [
+        4,
+        4
+      ],
+      "quarterBpm": 150.0
+    },
+    {
+      "id": "bar-22",
+      "order": 22,
+      "number": 22,
+      "start": 33.777,
+      "end": 35.377,
+      "timeSignature": [
+        4,
+        4
+      ],
+      "quarterBpm": 150.0
+    },
+    {
+      "id": "bar-23",
+      "order": 23,
+      "number": 23,
+      "start": 35.377,
+      "end": 36.977,
+      "timeSignature": [
+        4,
+        4
+      ],
+      "quarterBpm": 150.0
+    },
+    {
+      "id": "bar-24",
+      "order": 24,
+      "number": 24,
+      "start": 36.977,
+      "end": 38.577,
+      "timeSignature": [
+        4,
+        4
+      ],
+      "quarterBpm": 150.0
+    },
+    {
+      "id": "bar-25",
+      "order": 25,
+      "number": 25,
+      "start": 38.577,
+      "end": 40.177,
+      "timeSignature": [
+        4,
+        4
+      ],
+      "quarterBpm": 150.0
+    },
+    {
+      "id": "bar-26",
+      "order": 26,
+      "number": 26,
+      "start": 40.177,
+      "end": 41.777,
+      "timeSignature": [
+        4,
+        4
+      ],
+      "quarterBpm": 150.0
+    },
+    {
+      "id": "bar-27",
+      "order": 27,
+      "number": 27,
+      "start": 41.777,
+      "end": 43.377,
+      "timeSignature": [
+        4,
+        4
+      ],
+      "quarterBpm": 150.0
+    },
+    {
+      "id": "bar-28",
+      "order": 28,
+      "number": 28,
+      "start": 43.377,
+      "end": 44.977,
+      "timeSignature": [
+        4,
+        4
+      ],
+      "quarterBpm": 150.0
+    },
+    {
+      "id": "bar-29",
+      "order": 29,
+      "number": 29,
+      "start": 44.977,
+      "end": 46.577,
+      "timeSignature": [
+        4,
+        4
+      ],
+      "quarterBpm": 150.0
+    },
+    {
+      "id": "bar-30",
+      "order": 30,
+      "number": 30,
+      "start": 46.577,
+      "end": 48.177,
+      "timeSignature": [
+        4,
+        4
+      ],
+      "quarterBpm": 150.0
+    },
+    {
+      "id": "bar-31",
+      "order": 31,
+      "number": 31,
+      "start": 48.177,
+      "end": 49.777,
+      "timeSignature": [
+        4,
+        4
+      ],
+      "quarterBpm": 150.0
+    },
+    {
+      "id": "bar-32",
+      "order": 32,
+      "number": 32,
+      "start": 49.777,
+      "end": 51.377,
+      "timeSignature": [
+        4,
+        4
+      ],
+      "quarterBpm": 150.0
+    },
+    {
+      "id": "bar-33",
+      "order": 33,
+      "number": 33,
+      "start": 51.377,
+      "end": 52.977,
+      "timeSignature": [
+        4,
+        4
+      ],
+      "quarterBpm": 150.0
+    },
+    {
+      "id": "bar-34",
+      "order": 34,
+      "number": 34,
+      "start": 52.977,
+      "end": 54.577,
+      "timeSignature": [
+        4,
+        4
+      ],
+      "quarterBpm": 150.0
+    },
+    {
+      "id": "bar-35",
+      "order": 35,
+      "number": 35,
+      "start": 54.577,
+      "end": 56.177,
+      "timeSignature": [
+        4,
+        4
+      ],
+      "quarterBpm": 150.0
+    },
+    {
+      "id": "bar-36",
+      "order": 36,
+      "number": 36,
+      "start": 56.177,
+      "end": 57.777,
+      "timeSignature": [
+        4,
+        4
+      ],
+      "quarterBpm": 150.0
+    },
+    {
+      "id": "bar-37",
+      "order": 37,
+      "number": 37,
+      "start": 57.777,
+      "end": 59.377,
+      "timeSignature": [
+        4,
+        4
+      ],
+      "quarterBpm": 150.0
+    },
+    {
+      "id": "bar-38",
+      "order": 38,
+      "number": 38,
+      "start": 59.377,
+      "end": 60.977,
+      "timeSignature": [
+        4,
+        4
+      ],
+      "quarterBpm": 150.0
+    },
+    {
+      "id": "bar-39",
+      "order": 39,
+      "number": 39,
+      "start": 60.977,
+      "end": 62.577,
+      "timeSignature": [
+        4,
+        4
+      ],
+      "quarterBpm": 150.0
+    },
+    {
+      "id": "bar-40",
+      "order": 40,
+      "number": 40,
+      "start": 62.577,
+      "end": 64.177,
+      "timeSignature": [
+        4,
+        4
+      ],
+      "quarterBpm": 150.0
+    },
+    {
+      "id": "bar-41",
+      "order": 41,
+      "number": 41,
+      "start": 64.177,
+      "end": 65.777,
+      "timeSignature": [
+        4,
+        4
+      ],
+      "quarterBpm": 150.0
+    },
+    {
+      "id": "bar-42",
+      "order": 42,
+      "number": 42,
+      "start": 65.777,
+      "end": 67.377,
+      "timeSignature": [
+        4,
+        4
+      ],
+      "quarterBpm": 150.0
+    },
+    {
+      "id": "bar-43",
+      "order": 43,
+      "number": 43,
+      "start": 67.377,
+      "end": 68.977,
+      "timeSignature": [
+        4,
+        4
+      ],
+      "quarterBpm": 150.0
+    },
+    {
+      "id": "bar-44",
+      "order": 44,
+      "number": 44,
+      "start": 68.977,
+      "end": 70.577,
+      "timeSignature": [
+        4,
+        4
+      ],
+      "quarterBpm": 150.0
+    },
+    {
+      "id": "bar-45",
+      "order": 45,
+      "number": 45,
+      "start": 70.577,
+      "end": 72.177,
+      "timeSignature": [
+        4,
+        4
+      ],
+      "quarterBpm": 150.0
+    },
+    {
+      "id": "bar-46",
+      "order": 46,
+      "number": 46,
+      "start": 72.177,
+      "end": 73.777,
+      "timeSignature": [
+        4,
+        4
+      ],
+      "quarterBpm": 150.0
+    },
+    {
+      "id": "bar-47",
+      "order": 47,
+      "number": 47,
+      "start": 73.777,
+      "end": 75.377,
+      "timeSignature": [
+        4,
+        4
+      ],
+      "quarterBpm": 150.0
+    },
+    {
+      "id": "bar-48",
+      "order": 48,
+      "number": 48,
+      "start": 75.377,
+      "end": 76.977,
+      "timeSignature": [
+        4,
+        4
+      ],
+      "quarterBpm": 150.0
+    },
+    {
+      "id": "bar-49",
+      "order": 49,
+      "number": 49,
+      "start": 76.977,
+      "end": 78.577,
+      "timeSignature": [
+        4,
+        4
+      ],
+      "quarterBpm": 150.0
+    },
+    {
+      "id": "bar-50",
+      "order": 50,
+      "number": 50,
+      "start": 78.577,
+      "end": 80.177,
+      "timeSignature": [
+        4,
+        4
+      ],
+      "quarterBpm": 150.0
+    },
+    {
+      "id": "bar-51",
+      "order": 51,
+      "number": 51,
+      "start": 80.177,
+      "end": 81.777,
+      "timeSignature": [
+        4,
+        4
+      ],
+      "quarterBpm": 150.0
+    },
+    {
+      "id": "bar-52",
+      "order": 52,
+      "number": 52,
+      "start": 81.777,
+      "end": 83.377,
+      "timeSignature": [
+        4,
+        4
+      ],
+      "quarterBpm": 150.0
+    },
+    {
+      "id": "bar-53",
+      "order": 53,
+      "number": 53,
+      "start": 83.377,
+      "end": 84.977,
+      "timeSignature": [
+        4,
+        4
+      ],
+      "quarterBpm": 150.0
+    },
+    {
+      "id": "bar-54",
+      "order": 54,
+      "number": 54,
+      "start": 84.977,
+      "end": 86.577,
+      "timeSignature": [
+        4,
+        4
+      ],
+      "quarterBpm": 150.0
+    },
+    {
+      "id": "bar-55",
+      "order": 55,
+      "number": 55,
+      "start": 86.577,
+      "end": 88.177,
+      "timeSignature": [
+        4,
+        4
+      ],
+      "quarterBpm": 150.0
+    },
+    {
+      "id": "bar-56",
+      "order": 56,
+      "number": 56,
+      "start": 88.177,
+      "end": 89.777,
+      "timeSignature": [
+        4,
+        4
+      ],
+      "quarterBpm": 150.0
+    },
+    {
+      "id": "bar-57",
+      "order": 57,
+      "number": 57,
+      "start": 89.777,
+      "end": 91.377,
+      "timeSignature": [
+        4,
+        4
+      ],
+      "quarterBpm": 150.0
+    },
+    {
+      "id": "bar-58",
+      "order": 58,
+      "number": 58,
+      "start": 91.377,
+      "end": 92.977,
+      "timeSignature": [
+        4,
+        4
+      ],
+      "quarterBpm": 150.0
+    },
+    {
+      "id": "bar-59",
+      "order": 59,
+      "number": 59,
+      "start": 92.977,
+      "end": 94.577,
+      "timeSignature": [
+        4,
+        4
+      ],
+      "quarterBpm": 150.0
+    },
+    {
+      "id": "bar-60",
+      "order": 60,
+      "number": 60,
+      "start": 94.577,
+      "end": 96.177,
+      "timeSignature": [
+        4,
+        4
+      ],
+      "quarterBpm": 150.0
+    },
+    {
+      "id": "bar-61",
+      "order": 61,
+      "number": 61,
+      "start": 96.177,
+      "end": 97.777,
+      "timeSignature": [
+        4,
+        4
+      ],
+      "quarterBpm": 150.0
+    },
+    {
+      "id": "bar-62",
+      "order": 62,
+      "number": 62,
+      "start": 97.777,
+      "end": 99.377,
+      "timeSignature": [
+        4,
+        4
+      ],
+      "quarterBpm": 150.0
+    },
+    {
+      "id": "bar-63",
+      "order": 63,
+      "number": 63,
+      "start": 99.377,
+      "end": 100.977,
+      "timeSignature": [
+        4,
+        4
+      ],
+      "quarterBpm": 150.0
+    },
+    {
+      "id": "bar-64",
+      "order": 64,
+      "number": 64,
+      "start": 100.977,
+      "end": 102.577,
+      "timeSignature": [
+        4,
+        4
+      ],
+      "quarterBpm": 150.0
+    },
+    {
+      "id": "bar-65",
+      "order": 65,
+      "number": 65,
+      "start": 102.577,
+      "end": 104.177,
+      "timeSignature": [
+        4,
+        4
+      ],
+      "quarterBpm": 150.0
+    },
+    {
+      "id": "bar-66",
+      "order": 66,
+      "number": 66,
+      "start": 104.177,
+      "end": 105.777,
+      "timeSignature": [
+        4,
+        4
+      ],
+      "quarterBpm": 150.0
+    },
+    {
+      "id": "bar-67",
+      "order": 67,
+      "number": 67,
+      "start": 105.777,
+      "end": 107.377,
+      "timeSignature": [
+        4,
+        4
+      ],
+      "quarterBpm": 150.0
+    },
+    {
+      "id": "bar-68",
+      "order": 68,
+      "number": 68,
+      "start": 107.377,
+      "end": 108.977,
+      "timeSignature": [
+        4,
+        4
+      ],
+      "quarterBpm": 150.0
+    },
+    {
+      "id": "bar-69",
+      "order": 69,
+      "number": 69,
+      "start": 108.977,
+      "end": 110.577,
+      "timeSignature": [
+        4,
+        4
+      ],
+      "quarterBpm": 150.0
+    },
+    {
+      "id": "bar-70",
+      "order": 70,
+      "number": 70,
+      "start": 110.577,
+      "end": 112.177,
+      "timeSignature": [
+        4,
+        4
+      ],
+      "quarterBpm": 150.0
+    },
+    {
+      "id": "bar-71",
+      "order": 71,
+      "number": 71,
+      "start": 112.177,
+      "end": 113.777,
+      "timeSignature": [
+        4,
+        4
+      ],
+      "quarterBpm": 150.0
+    },
+    {
+      "id": "bar-72",
+      "order": 72,
+      "number": 72,
+      "start": 113.777,
+      "end": 115.377,
+      "timeSignature": [
+        4,
+        4
+      ],
+      "quarterBpm": 150.0
+    },
+    {
+      "id": "bar-73",
+      "order": 73,
+      "number": 73,
+      "start": 115.377,
+      "end": 116.977,
+      "timeSignature": [
+        4,
+        4
+      ],
+      "quarterBpm": 150.0
+    },
+    {
+      "id": "bar-74",
+      "order": 74,
+      "number": 74,
+      "start": 116.977,
+      "end": 118.577,
+      "timeSignature": [
+        4,
+        4
+      ],
+      "quarterBpm": 150.0
+    },
+    {
+      "id": "bar-75",
+      "order": 75,
+      "number": 75,
+      "start": 118.577,
+      "end": 120.177,
+      "timeSignature": [
+        4,
+        4
+      ],
+      "quarterBpm": 150.0
+    },
+    {
+      "id": "bar-76",
+      "order": 76,
+      "number": 76,
+      "start": 120.177,
+      "end": 121.777,
+      "timeSignature": [
+        4,
+        4
+      ],
+      "quarterBpm": 150.0
+    },
+    {
+      "id": "bar-77",
+      "order": 77,
+      "number": 77,
+      "start": 121.777,
+      "end": 123.377,
+      "timeSignature": [
+        4,
+        4
+      ],
+      "quarterBpm": 150.0
+    },
+    {
+      "id": "bar-78",
+      "order": 78,
+      "number": 78,
+      "start": 123.377,
+      "end": 124.977,
+      "timeSignature": [
+        4,
+        4
+      ],
+      "quarterBpm": 150.0
+    },
+    {
+      "id": "bar-79",
+      "order": 79,
+      "number": 79,
+      "start": 124.977,
+      "end": 126.577,
+      "timeSignature": [
+        4,
+        4
+      ],
+      "quarterBpm": 150.0
+    },
+    {
+      "id": "bar-80",
+      "order": 80,
+      "number": 80,
+      "start": 126.577,
+      "end": 128.177,
+      "timeSignature": [
+        4,
+        4
+      ],
+      "quarterBpm": 150.0
+    },
+    {
+      "id": "bar-81",
+      "order": 81,
+      "number": 81,
+      "start": 128.177,
+      "end": 129.777,
+      "timeSignature": [
+        4,
+        4
+      ],
+      "quarterBpm": 150.0
+    },
+    {
+      "id": "bar-82",
+      "order": 82,
+      "number": 82,
+      "start": 129.777,
+      "end": 131.377,
+      "timeSignature": [
+        4,
+        4
+      ],
+      "quarterBpm": 150.0
+    },
+    {
+      "id": "bar-83",
+      "order": 83,
+      "number": 83,
+      "start": 131.377,
+      "end": 132.977,
+      "timeSignature": [
+        4,
+        4
+      ],
+      "quarterBpm": 150.0
+    },
+    {
+      "id": "bar-84",
+      "order": 84,
+      "number": 84,
+      "start": 132.977,
+      "end": 134.577,
+      "timeSignature": [
+        4,
+        4
+      ],
+      "quarterBpm": 150.0
+    },
+    {
+      "id": "bar-85",
+      "order": 85,
+      "number": 85,
+      "start": 134.577,
+      "end": 136.177,
+      "timeSignature": [
+        4,
+        4
+      ],
+      "quarterBpm": 150.0
+    },
+    {
+      "id": "bar-86",
+      "order": 86,
+      "number": 86,
+      "start": 136.177,
+      "end": 137.777,
+      "timeSignature": [
+        4,
+        4
+      ],
+      "quarterBpm": 150.0
+    },
+    {
+      "id": "bar-87",
+      "order": 87,
+      "number": 87,
+      "start": 137.777,
+      "end": 139.377,
+      "timeSignature": [
+        4,
+        4
+      ],
+      "quarterBpm": 150.0
+    },
+    {
+      "id": "bar-88",
+      "order": 88,
+      "number": 88,
+      "start": 139.377,
+      "end": 140.977,
+      "timeSignature": [
+        4,
+        4
+      ],
+      "quarterBpm": 150.0
+    },
+    {
+      "id": "bar-89",
+      "order": 89,
+      "number": 89,
+      "start": 140.977,
+      "end": 142.577,
+      "timeSignature": [
+        4,
+        4
+      ],
+      "quarterBpm": 150.0
+    },
+    {
+      "id": "bar-90",
+      "order": 90,
+      "number": 90,
+      "start": 142.577,
+      "end": 144.177,
+      "timeSignature": [
+        4,
+        4
+      ],
+      "quarterBpm": 150.0
+    },
+    {
+      "id": "bar-91",
+      "order": 91,
+      "number": 91,
+      "start": 144.177,
+      "end": 145.777,
+      "timeSignature": [
+        4,
+        4
+      ],
+      "quarterBpm": 150.0
+    },
+    {
+      "id": "bar-92",
+      "order": 92,
+      "number": 92,
+      "start": 145.777,
+      "end": 147.377,
+      "timeSignature": [
+        4,
+        4
+      ],
+      "quarterBpm": 150.0
+    },
+    {
+      "id": "bar-93",
+      "order": 93,
+      "number": 93,
+      "start": 147.377,
+      "end": 148.977,
+      "timeSignature": [
+        4,
+        4
+      ],
+      "quarterBpm": 150.0
+    },
+    {
+      "id": "bar-94",
+      "order": 94,
+      "number": 94,
+      "start": 148.977,
+      "end": 150.577,
+      "timeSignature": [
+        4,
+        4
+      ],
+      "quarterBpm": 150.0
+    },
+    {
+      "id": "bar-95",
+      "order": 95,
+      "number": 95,
+      "start": 150.577,
+      "end": 152.177,
+      "timeSignature": [
+        4,
+        4
+      ],
+      "quarterBpm": 150.0
+    },
+    {
+      "id": "bar-96",
+      "order": 96,
+      "number": 96,
+      "start": 152.177,
+      "end": 153.777,
+      "timeSignature": [
+        4,
+        4
+      ],
+      "quarterBpm": 150.0
+    },
+    {
+      "id": "bar-97",
+      "order": 97,
+      "number": 97,
+      "start": 153.777,
+      "end": 155.377,
+      "timeSignature": [
+        4,
+        4
+      ],
+      "quarterBpm": 150.0
+    },
+    {
+      "id": "bar-98",
+      "order": 98,
+      "number": 98,
+      "start": 155.377,
+      "end": 156.977,
+      "timeSignature": [
+        4,
+        4
+      ],
+      "quarterBpm": 150.0
+    },
+    {
+      "id": "bar-99",
+      "order": 99,
+      "number": 99,
+      "start": 156.977,
+      "end": 158.577,
+      "timeSignature": [
+        4,
+        4
+      ],
+      "quarterBpm": 150.0
+    },
+    {
+      "id": "bar-100",
+      "order": 100,
+      "number": 100,
+      "start": 158.577,
+      "end": 160.177,
+      "timeSignature": [
+        4,
+        4
+      ],
+      "quarterBpm": 150.0
+    },
+    {
+      "id": "bar-101",
+      "order": 101,
+      "number": 101,
+      "start": 160.177,
+      "end": 161.777,
+      "timeSignature": [
+        4,
+        4
+      ],
+      "quarterBpm": 150.0
+    },
+    {
+      "id": "bar-102",
+      "order": 102,
+      "number": 102,
+      "start": 161.777,
+      "end": 163.377,
+      "timeSignature": [
+        4,
+        4
+      ],
+      "quarterBpm": 150.0
+    },
+    {
+      "id": "bar-103",
+      "order": 103,
+      "number": 103,
+      "start": 163.377,
+      "end": 164.977,
+      "timeSignature": [
+        4,
+        4
+      ],
+      "quarterBpm": 150.0
+    },
+    {
+      "id": "bar-104",
+      "order": 104,
+      "number": 104,
+      "start": 164.977,
+      "end": 166.577,
+      "timeSignature": [
+        4,
+        4
+      ],
+      "quarterBpm": 150.0
+    },
+    {
+      "id": "bar-105",
+      "order": 105,
+      "number": 105,
+      "start": 166.577,
+      "end": 168.177,
+      "timeSignature": [
+        4,
+        4
+      ],
+      "quarterBpm": 150.0
+    },
+    {
+      "id": "bar-106",
+      "order": 106,
+      "number": 106,
+      "start": 168.177,
+      "end": 169.777,
+      "timeSignature": [
+        4,
+        4
+      ],
+      "quarterBpm": 150.0
+    },
+    {
+      "id": "bar-107",
+      "order": 107,
+      "number": 107,
+      "start": 169.777,
+      "end": 171.377,
+      "timeSignature": [
+        4,
+        4
+      ],
+      "quarterBpm": 150.0
+    },
+    {
+      "id": "bar-108",
+      "order": 108,
+      "number": 108,
+      "start": 171.377,
+      "end": 172.977,
+      "timeSignature": [
+        4,
+        4
+      ],
+      "quarterBpm": 150.0
+    },
+    {
+      "id": "bar-109",
+      "order": 109,
+      "number": 109,
+      "start": 172.977,
+      "end": 174.577,
+      "timeSignature": [
+        4,
+        4
+      ],
+      "quarterBpm": 150.0
+    },
+    {
+      "id": "bar-110",
+      "order": 110,
+      "number": 110,
+      "start": 174.577,
+      "end": 176.177,
+      "timeSignature": [
+        4,
+        4
+      ],
+      "quarterBpm": 150.0
+    },
+    {
+      "id": "bar-111",
+      "order": 111,
+      "number": 111,
+      "start": 176.177,
+      "end": 177.777,
+      "timeSignature": [
+        4,
+        4
+      ],
+      "quarterBpm": 150.0
+    },
+    {
+      "id": "bar-112",
+      "order": 112,
+      "number": 112,
+      "start": 177.777,
+      "end": 179.377,
+      "timeSignature": [
+        4,
+        4
+      ],
+      "quarterBpm": 150.0
+    },
+    {
+      "id": "bar-113",
+      "order": 113,
+      "number": 113,
+      "start": 179.377,
+      "end": 180.977,
+      "timeSignature": [
+        4,
+        4
+      ],
+      "quarterBpm": 150.0
+    },
+    {
+      "id": "bar-114",
+      "order": 114,
+      "number": 114,
+      "start": 180.977,
+      "end": 182.577,
+      "timeSignature": [
+        4,
+        4
+      ],
+      "quarterBpm": 150.0
+    },
+    {
+      "id": "bar-115",
+      "order": 115,
+      "number": 115,
+      "start": 182.577,
+      "end": 184.177,
+      "timeSignature": [
+        4,
+        4
+      ],
+      "quarterBpm": 150.0
+    },
+    {
+      "id": "bar-116",
+      "order": 116,
+      "number": 116,
+      "start": 184.177,
+      "end": 185.777,
+      "timeSignature": [
+        4,
+        4
+      ],
+      "quarterBpm": 150.0
+    }
+  ]
+}

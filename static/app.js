@@ -1,4 +1,7 @@
 const state = {
+  barlist: null,
+  barCoverage: null,
+  barRecords: [],
   sourceId: null,
   sourceUrl: null,
   sourceType: null, // "image" | "video"
@@ -40,7 +43,81 @@ const state = {
 
 const JSON_HEADERS = { "Content-Type": "application/json" };
 
+function currentBarCoverage() {
+  if (!state.barCoverage) return null;
+  const visible = state.captureJobId && !state.images.some(m=>m.source_file) ? new Set(state.images.filter(m => !m.hidden).map(m => m.file)) : null;
+  const bars = state.barCoverage.bars.map(row => ({ ...row,
+    status: ["captured", "excluded"].includes(row.status) && visible ?
+      (visible.has(row.file) ? "captured" : "excluded") : row.status,
+  }));
+  const captured = bars.filter(row => row.status === "captured").length;
+  return { ...state.barCoverage, bars, captured, unresolved: bars.length - captured,
+    capture_complete: captured === bars.length, notation_complete: false };
+}
+
+function renderBarlist() {
+  els.barlistPanel.classList.toggle("hidden", !state.barlist);
+  if (!state.barlist) return;
+  const task = state.barlist;
+  const report = currentBarCoverage();
+  els.barlistSummary.textContent = `${task.video.bvid} · P${task.video.page} · 原始配置 ${task.instrument.stringCount} 弦 · 第 ${task.bars[0].number}–${task.bars[task.bars.length - 1].number} 小节` +
+    (report ? `｜候选图 ${report.captured}/${report.expected}，待处理 ${report.unresolved}；谱面对应关系待确认。` : "｜等待取图。");
+  els.barlistRows.replaceChildren();
+  const statuses = { captured: "已取图，待核对谱面", missing: "缺图", excluded: "图片已隐藏或替换", conflict: "对应冲突" };
+  (report?.bars || []).forEach(row => {
+    const tr = document.createElement("tr");
+    [String(row.number), `${row.start.toFixed(3)}–${row.end.toFixed(3)} 秒`,
+      `${statuses[row.status] || row.status}${row.reason ? `：${row.reason}` : ""}`].forEach(value => {
+      const td = document.createElement("td"); td.textContent = value; tr.appendChild(td);
+    });
+    const td = document.createElement("td");
+    const record = state.barRecords.find(r => r.bar_id === row.bar_id);
+    if (state.captureJobId) (record?.candidates || []).forEach((candidate, i) => {
+      const a = document.createElement("a");
+      a.href = `/api/captures/${state.captureJobId}/${candidate.file}`;
+      a.target = "_blank"; a.rel = "noopener";
+      a.textContent = `${i + 1}${candidate.file === row.file ? "（选中）" : ""}`;
+      td.appendChild(a);
+    });
+    tr.appendChild(td); els.barlistRows.appendChild(tr);
+  });
+}
+
+async function refreshBarlist() {
+  if (!state.barlist || !state.sourceId) return;
+  const sourceId = state.sourceId;
+  const data = await fetchJson(`/api/barlist/${sourceId}`);
+  if (state.sourceId !== sourceId) return;
+  state.barCoverage = data.coverage;
+  state.barRecords = data.records;
+  renderBarlist();
+}
+
+async function receiveBarlistFragment() {
+  const hash = new URLSearchParams(location.hash.slice(1));
+  if (!hash.has("barlist")) return;
+  setImportLoading(true);
+  setStatus(els.importStatus, "正在接收网页端小节任务…");
+  try {
+    const encoded = hash.get("barlist");
+    if (!encoded || encoded.length > 60000 || !/^[A-Za-z0-9_-]+$/.test(encoded)) throw new Error("交接链接无效或过大，请导入 JSON 文件。");
+    const binary = atob(encoded.replace(/-/g, "+").replace(/_/g, "/"));
+    const task = JSON.parse(new TextDecoder("utf-8", { fatal: true }).decode(Uint8Array.from(binary, c => c.charCodeAt(0))));
+    const source = await fetchJson("/api/barlist/import", { method: "POST", headers: JSON_HEADERS, body: JSON.stringify(task) });
+    // Clear only after success, so a failed network import can be retried by reload.
+    history.replaceState(null, "", location.pathname + location.search);
+    applySource(source, source.restore ? "restore" : "fresh");
+  } catch (error) {
+    setStatus(els.importStatus, error.message, "error");
+  } finally { setImportLoading(false); }
+}
+
 const els = {
+  barlistPanel: document.getElementById("barlistPanel"),
+  barlistSummary: document.getElementById("barlistSummary"),
+  barlistRows: document.getElementById("barlistRows"),
+  barlistRefresh: document.getElementById("barlistRefresh"),
+  barlistDownload: document.getElementById("barlistDownload"),
   importPanel: document.getElementById("importPanel"),
   importForm: document.getElementById("importForm"),
   importButton: document.getElementById("importButton"),
@@ -247,6 +324,7 @@ function setStage(n) {
   els.adjustPanel.classList.toggle("hidden", n !== 3);
   els.layoutPanel.classList.toggle("hidden", n !== 4);
   renderStepper();
+  window.updateScoreRows?.();
   if (n === 2 && state.sourceId && state.previewTime === null && !state.previewLoading) {
     // 进入截图步骤时，若尚未加载预览，默认显示视频时间中点的一帧。
     loadPreview(state.initialPreviewTime);
@@ -400,6 +478,7 @@ async function pollDownload(sourceId) {
 function serializeImages() {
   return state.images.map((m) => ({
     file: m.file,
+    source_file: m.source_file,
     t: m.t ?? 0,
     w: m.w,
     h: m.h,
@@ -465,6 +544,7 @@ function persistStateNow() {
       if (oldSigs.get(m.file) !== imageSignature(m)) {
         patches.push({
           file: m.file,
+    source_file: m.source_file,
           hidden: !!m.hidden,
           crop: { l: m.crop.l, r: m.crop.r, t: m.crop.t ?? 0, b: m.crop.b ?? 1 },
           measures: m.measures || [],
@@ -855,6 +935,10 @@ function applySource(source, mode /* '' | 'restore' | 'fresh' */) {
   hideImportProgress();
 
   state.sourceId = source.id;
+  state.barlist = source.barlist || null;
+  state.barCoverage = source.coverage || null;
+  state.barRecords = [];
+  renderBarlist();
   state.cacheKey = !!source.cache_dir;
   state.duration = source.duration || null;
   // PDF 与图片同属“非视频源”：图片只有单张原图；PDF 复用视频的时间轴（按页数）。
@@ -923,6 +1007,19 @@ function applySource(source, mode /* '' | 'restore' | 'fresh' */) {
     if (els.startPageInput) els.startPageInput.value = String(source.params2.startPage || 1);
   }
 
+  if (state.barlist) {
+    const bars = state.barlist.bars;
+    [[els.startMinInput, els.startSecInput, bars[0].start],
+      [els.endMinInput, els.endSecInput, bars[bars.length - 1].end]].forEach(([min, sec, value]) => {
+      min.value = String(Math.floor(value / 60));
+      sec.value = (value % 60).toFixed(3);
+    });
+    state.initialPreviewTime = bars[0].start;
+    refreshBarlist().catch(() => {});
+  }
+  [els.startMinInput, els.startSecInput, els.endMinInput, els.endSecInput,
+    els.sampleEvery, els.diffThreshold, els.compareWindow].forEach(el => { if (el) el.disabled = !!state.barlist; });
+  els.timeline.style.pointerEvents = state.barlist ? "none" : "";
   updateCropUi();
   updateTimeline();
 
@@ -1182,11 +1279,16 @@ function buildExtractPayload() {
     payload.end_page = currentEndTime();
     payload.pdf_dpi = numericValue(els.pdfDpi, 200);
   }
+  if (state.barlist) {
+    payload.start = state.barlist.bars[0].start;
+    payload.end = state.barlist.bars[state.barlist.bars.length - 1].end;
+  }
   return payload;
 }
 
 // 计算本次提取的总帧数（用于进度条）：(结束-开始) / 采样间隔，向上取整；PDF 用页数。
 function totalFrames() {
+  if (state.barlist) return state.barlist.bars.length;
   if (isPageMode()) {
     return Math.max(0, currentEndTime() - currentStartTime() + 1);
   }
@@ -1217,6 +1319,10 @@ function hideExtractProgress() {
 }
 
 function renderJob(job) {
+  if (job.coverage) {
+    state.barCoverage = job.coverage;
+    state.barRecords = job.bar_records || [];
+  }
   const phaseKey = job.status === "error" ? "error" : job.phase || job.status;
   const total = totalFrames();
 
@@ -1424,6 +1530,7 @@ function fillToolbarIcons() {
 function renderCards(images) {
   state.images = (images || []).map((m) => ({
     file: m.file,
+    source_file: m.source_file,
     url: m.url,
     t: m.t ?? 0,
     w: m.w,
@@ -1440,6 +1547,7 @@ function renderCards(images) {
 function restoreCards(images) {
   state.images = (images || []).map((m) => ({
     file: m.file,
+    source_file: m.source_file,
     url: `/api/captures/${state.captureJobId}/${m.file}`,
     t: m.t ?? 0,
     w: m.w,
@@ -1496,6 +1604,7 @@ function applyHiddenVisibility() {
 }
 
 function renderCardList() {
+  renderBarlist();
   numberMeasures();
   const scrollY = window.scrollY;
   els.cardList.innerHTML = "";
@@ -1514,6 +1623,7 @@ function renderCardList() {
 // 大量截图时避免整体重建导致卡顿与滚动条跳动；排序/增删/分割/合并等结构变化
 // 会改变卡片顺序，检测到顺序不一致时自动退回整体重建。
 function syncCardList() {
+  renderBarlist();
   numberMeasures();
   const scrollY = window.scrollY;
   const cards = [...els.cardList.querySelectorAll(".card")];
@@ -2321,6 +2431,10 @@ function sortScrollTick() {
 }
 
 function beginCardSort(index, card, event) {
+  if (state.barlist) {
+    showToast("小节任务按 bar list 保持顺序；请在网页端修改列表后重新导入。");
+    return;
+  }
   event.preventDefault();
   sortDrag = {
     from: index,
@@ -2876,6 +2990,7 @@ function layoutPayload() {
       .filter((m) => !m.hidden)
       .map((m) => ({
         file: m.file,
+    source_file: m.source_file,
         crop: { l: m.crop.l, r: m.crop.r, t: m.crop.t ?? 0, b: m.crop.b ?? 1 },
         measures: m.measures || [],
       })),
@@ -3109,7 +3224,7 @@ els.endSecInput.addEventListener("change", updateTimeline);
 
 function updateFileHint() {
   const file = els.localFile.files && els.localFile.files[0];
-  els.fileHint.textContent = file ? file.name : "本地视频、图片或 PDF";
+  els.fileHint.textContent = file ? file.name : "视频、图片、PDF 或 barlist JSON";
 }
 
 els.bvidInput.addEventListener("input", () => {
@@ -3130,7 +3245,7 @@ els.localFile.addEventListener("change", () => {
 function isImportableFile(file) {
   if (!file) return false;
   if (file.type && (file.type.startsWith("video/") || file.type.startsWith("image/") || file.type === "application/pdf")) return true;
-  return /\.(mp4|mov|mkv|webm|m4s|png|jpe?g|webp|bmp|gif|pdf)$/i.test(file.name);
+  return /\.(mp4|mov|mkv|webm|m4s|png|jpe?g|webp|bmp|gif|pdf|json)$/i.test(file.name);
 }
 
 let fileDragDepth = 0;
@@ -3166,7 +3281,7 @@ els.fileField.addEventListener("drop", (event) => {
 
   const file = Array.from(event.dataTransfer.files).find(isImportableFile);
   if (!file) {
-    setStatus(els.importStatus, "请拖入视频（MP4/MOV/WebM/MKV）、图片（PNG/JPG/WebP/BMP/GIF）或 PDF。", "error");
+    setStatus(els.importStatus, "请拖入视频、图片、PDF 或 barline 导出的 barlist JSON。", "error");
     return;
   }
 
@@ -4303,3 +4418,14 @@ function setPreviewQnBadge(qn) {
   badge.textContent = label;
   badge.classList.remove('hidden');
 }
+
+// Handoff uses the fragment: no cross-origin POST or permissive CORS is required.
+els.barlistRefresh.addEventListener("click", () => refreshBarlist().catch(e => showToast(e.message, "error")));
+els.barlistDownload.addEventListener("click", () => {
+  if (!state.barlist) return;
+  const data = { ...state.barlist, captureReport: currentBarCoverage() };
+  const url = URL.createObjectURL(new Blob([JSON.stringify(data, null, 2)], { type: "application/json" }));
+  const a = document.createElement("a"); a.href = url; a.download = `${state.barlist.taskId}.barlist.json`; a.click();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+});
+receiveBarlistFragment();

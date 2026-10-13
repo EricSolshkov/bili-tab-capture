@@ -35,6 +35,17 @@
       </nav>
     </header>
 
+    <section class="panel hidden" id="barlistPanel" aria-label="小节任务">
+      <h2>小节任务</h2>
+      <p id="barlistSummary" role="status"></p>
+      <p>按列表逐小节取图，保留重复演奏。候选图齐全不代表图中谱面已匹配；请在后续转谱前核对。任务支持 4–7 弦，调弦需另行确认。</p>
+      <button type="button" class="secondary-button" id="barlistRefresh">刷新完整性检查</button>
+      <button type="button" class="secondary-button" id="barlistDownload">导出任务与检查结果</button>
+      <details><summary>小节覆盖情况与候选图片</summary><div class="barlist-table-wrap">
+        <table class="barlist-table"><thead><tr><th>小节</th><th>视频时间</th><th>状态</th><th>候选图</th></tr></thead><tbody id="barlistRows"></tbody></table>
+      </div></details>
+    </section>
+
     <section class="panel import-panel" id="importPanel" aria-busy="false">
       <div class="panel-title-row">
         <h2 class="panel-title">导入</h2>
@@ -62,7 +73,7 @@
               <span class="file-note">可拖入文件或 Ctrl+V 粘贴图片</span>
             </span>
             <input id="localFile" name="file" type="file"
-              accept="video/mp4,video/quicktime,video/webm,video/x-matroska,.m4s,image/png,image/jpeg,image/webp,image/bmp,image/gif,application/pdf,.pdf"
+              accept="video/mp4,video/quicktime,video/webm,video/x-matroska,.m4s,image/png,image/jpeg,image/webp,image/bmp,image/gif,application/pdf,.pdf,application/json,.json"
               autocomplete="off">
           </label>
         </div>
@@ -74,6 +85,7 @@
           <button class="secondary-button" id="bilibiliLoginButton" type="button">登录高清</button>
         </div>
 
+        <p>也可拖入 barline 导出的 .barlist.json，自动接收视频、小节范围和弦数。</p>
         <button class="primary-button import-button" id="importButton" type="submit">导入</button>
       </form>
 
@@ -219,6 +231,25 @@
     </section>
 
     <section class="panel adjust-panel hidden" id="adjustPanel" aria-busy="false">
+      <div id="rowModeSwitch" class="hidden"><button type="button" class="secondary-button" id="toggleRowMode">切换到逐图调整 / PDF 排版</button></div>
+      <section id="rowWorkspace" class="hidden" aria-label="整行谱面工作台">
+        <h2>整行谱面校对</h2>
+        <label>转谱弦数 <select id="scoreStringCount" aria-label="转谱弦数"><option value="4">4 弦</option><option value="5">5 弦</option><option value="6">6 弦</option><option value="7">7 弦</option></select></label>
+        <p>帧时间与播放高亮自动关联小节，重复区间自动略过。点击编号回看，点击区间 × 排除；编辑后全局联动编号和时间。灰色区间不导出。</p>
+        <div class="button-row"><button id="autoAssociateRows" type="button" class="secondary-button">重新自动关联</button><button id="undoScoreRows" type="button" class="secondary-button" disabled>撤销上次编辑</button><button id="acceptInferredRows" type="button" class="secondary-button">采用当前推断并全局顺排</button></div>
+        <div class="button-row"><button id="saveScoreRows" type="button" class="secondary-button">保存校对</button><button id="exportScoreRows" type="button" class="primary-button" disabled>批量切图并下载 ZIP</button></div>
+        <label><input id="scoreRowsPendingOnly" type="checkbox">只看待校对的行</label>
+        <p id="scoreRowStatus" role="status"></p>
+        <div id="scoreRowCoverage" aria-live="polite"></div>
+        <details id="rowPlayback"><summary>视频回看</summary><video id="rowVideo" controls preload="metadata"></video><p id="rowVideoHint"></p><a id="rowOriginalVideo" target="_blank" rel="noopener">在 B 站回看此小节</a></details>
+        <div id="scoreRowList"></div>
+        <div class="row-next-step">
+          <h3>校对完成，继续下一步</h3>
+          <p id="applyScoreRowsHint" role="status"></p>
+          <button id="applyScoreRows" type="button" class="primary-button" disabled>应用结果并进入逐图调整 →</button>
+          <p>保留当前裁剪、小节线和顺序，略过重复区间；下一页可继续微调并开始 PDF 排版。再次应用会替换逐图调整中的内容。</p>
+        </div>
+      </section>
       <h2 class="panel-title">调整</h2>
       <p class="panel-sub">检查截图裁剪及小节线</p>
       <div class="action-row">
@@ -553,6 +584,8 @@
   <button class="back-to-top" id="backToTop" type="button" aria-label="回到顶部">↑</button>
 
   <script src="/static/app.js"></script>
+  <script src="/static/score_sequence.js"></script>
+  <script src="/static/score_rows.js"></script>
 </body>
 
 </html>

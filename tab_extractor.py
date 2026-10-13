@@ -207,7 +207,11 @@ def normalize_bilibili_url(value: str) -> str:
     bvid, aid = extract_bilibili_id(value)
     if not bvid and not aid:
         raise ValueError("请输入有效的 Bilibili BV 号。")
-    return f"https://www.bilibili.com/video/{bvid or f'av{aid}'}"
+    page = urllib.parse.parse_qs(urllib.parse.urlparse(value).query).get("p", ["1"])[0]
+    if not page.isdigit() or int(page) < 1:
+        raise ValueError("分P必须是正整数")
+    suffix = f"?p={int(page)}" if int(page) != 1 else ""
+    return f"https://www.bilibili.com/video/{bvid or f'av{aid}'}{suffix}"
 
 
 def _bilibili_api_json(url: str) -> Dict[str, Any]:
@@ -236,10 +240,15 @@ def probe_bilibili_metadata(url: str) -> Tuple[VideoMetadata, Optional[float]]:
 
     info = data.get("data") or {}
     owner = info.get("owner") or {}
-    duration = info.get("duration")
+    page = int(urllib.parse.parse_qs(urllib.parse.urlparse(url).query).get("p", ["1"])[0])
+    parts = info.get("pages") or []
+    part = next((p for p in parts if int(p.get("page", 0)) == page), None)
+    if parts and part is None:
+        raise ValueError("分P不存在")
+    duration = (part or info).get("duration")
     duration_float = float(duration) if duration is not None else None
 
-    canonical = f"https://www.bilibili.com/video/{bvid or f'av{aid}'}"
+    canonical = normalize_bilibili_url(url)
     metadata = build_video_metadata(
         raw_title=info.get("title"),
         channel=owner.get("name"),
@@ -1519,27 +1528,15 @@ def detect_measure_barlines(
     coefficient_horizontal: float = 0.7,
     coefficient_vertical: float = 0.8,
 ) -> List[int]:
-    """检测谱面（tab）里的小节线（竖线），返回升序的 x 像素坐标。
+    """Projection-statistics suggestions; no whole-image heuristic fallback.
 
-    优先使用鲁棒检测（先定位谱表横线，再做形态学竖线检测）；若未检出，
-    回退到旧的逐列墨迹占比启发式。
+    Legacy keyword arguments remain accepted for CLI/API compatibility.
     """
-    bars = detect_barlines_robust(
-        image,
-        coefficient_horizontal=coefficient_horizontal,
-        coefficient_vertical=coefficient_vertical,
-        min_margin=min_margin,
-    )
-    if bars:
-        return bars
-    return _detect_measure_barlines_heuristic(
-        image,
-        ink_threshold=ink_threshold,
-        staff_row_ratio=staff_row_ratio,
-        span_ratio=span_ratio,
-        merge_gap=merge_gap,
-        min_margin=min_margin,
-    )
+    from score_rows import suggest_lines
+    result = suggest_lines(image)
+    return [round(x * image.width) for x in result["lines"]
+            if min_margin <= round(x * image.width) <= image.width - min_margin]
+
 
 
 def split_into_measures(image: Image.Image, bars: List[int]) -> List[Image.Image]:

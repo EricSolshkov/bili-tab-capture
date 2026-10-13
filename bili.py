@@ -9,6 +9,7 @@ import io
 import json
 import re
 import time
+from urllib.parse import parse_qs, urlparse
 from pathlib import Path
 from typing import Optional
 
@@ -190,15 +191,27 @@ def resolve_short_url(url: str, timeout: float = 20) -> str:
 
 
 def _get_cid(url: str, cookie: Optional[str]) -> int:
-    """从 view 接口拿视频 cid（分 P 取第一个）。"""
+    """Resolve the selected part without silently falling back to part one."""
+    return int(resolve_video_part(url, cookie)[1]["cid"])
+
+
+def resolve_video_part(url: str, cookie: Optional[str] = None, expected_cid=None):
     bvid = extract_bvid(url)
     view_url = "https://api.bilibili.com/x/web-interface/view?bvid=" + bvid
-    data = get_json(view_url, cookie=cookie, timeout=15).get("data") or {}
+    response = get_json(view_url, cookie=cookie, timeout=15)
+    if response.get("code") != 0:
+        raise RuntimeError(response.get("message") or "无法读取视频信息")
+    data = response.get("data") or {}
     pages = data.get("pages") or []
-    cid = (pages[0].get("cid") if pages else None) or data.get("cid")
-    if not cid:
-        raise RuntimeError("无法获取该视频的 cid。")
-    return int(cid)
+    page = int(parse_qs(urlparse(url).query).get("p", ["1"])[0])
+    part = next((p for p in pages if int(p.get("page", 0)) == page), None)
+    if part is None and page == 1 and not pages and data.get("cid"):
+        part = {"page": 1, "cid": data["cid"], "duration": data.get("duration")}
+    if part is None or not part.get("cid"):
+        raise ValueError("分P不存在")
+    if expected_cid is not None and str(part["cid"]) != str(expected_cid):
+        raise ValueError("barlist 的 cid 与视频分P不一致，请重新导出任务")
+    return data, part
 
 
 def extract_bvid(url: str) -> str:
@@ -383,7 +396,14 @@ def download_bilibili_video_native(
     for use_cookie in dict.fromkeys(modes):  # 先去重用次
         # 1) DASH 视频轨 —— SSR; 仅视频便于 OpenCV/取帧（音频按需另下，见 with_audio）
         try:
-            dash = _playinfo_dash(url, use_cookie)
+            # SSR may return the first part; use explicit cid for other parts.
+            if parse_qs(urlparse(url).query).get("p", ["1"])[0] != "1":
+                play = get_json(
+                    "https://api.bilibili.com/x/player/playurl?bvid=%s&cid=%s&qn=%s&fnval=4048&fourk=1"
+                    % (extract_bvid(url), cid, quality or 116), cookie=use_cookie)
+                dash = (play.get("data") or {}).get("dash") or {}
+            else:
+                dash = _playinfo_dash(url, use_cookie)
             picks = _video_picks(dash, quality)
             picks.sort(key=lambda x: x[0], reverse=True)
             for vid, cc, base in picks[:6]:
