@@ -779,16 +779,16 @@ def score_row_workspace(source_id):
         saved = load_state_json(cache) or {}
         crops = cache / "crops"
         payload = request.get_json(silent=True) or {}
-        strings = barlist.number(payload.get("stringCount", saved.get("score_string_count", task["instrument"]["stringCount"])), "弦数", 4, 7, True)
+        strings = barlist.number(payload.get("stringCount", saved.get("score_string_count", 6)), "弦数", 4, 7, True)
         if request.method == "POST":
             if payload.get('action') == 'auto':
-                mapping_task = {**task, 'instrument': {**task['instrument'], 'stringCount': strings}}
+                mapping_task = {**task, 'instrument': {**task.get('instrument', {}), 'stringCount': strings}}
                 rows = score_rows.auto_associate(score_rows.propose_rows(saved, crops, strings), saved, mapping_task, crops)
             else:
                 rows = score_rows.validate_rows(payload.get("rows"), saved, task, crops)
             if payload.get("export"):
-                export_task = {**task, "instrument": {**task["instrument"], "stringCount": strings}}
-                if strings != task["instrument"]["stringCount"]:
+                export_task = {**task, "instrument": {**task.get("instrument", {}), "stringCount": strings}}
+                if strings != task.get("instrument", {}).get("stringCount", 6):
                     export_task["instrument"]["tuningMidi"] = None
                 return send_file(score_rows.export_bars(rows, export_task, crops), mimetype="application/zip",
                                  as_attachment=True, download_name=f"{task['taskId']}-bars.zip")
@@ -810,7 +810,7 @@ def score_row_workspace(source_id):
             rows = saved.get("score_rows")
             if rows is None:
                 rows = score_rows.propose_rows(saved, crops, strings)
-                mapping_task = {**task, 'instrument': {**task['instrument'], 'stringCount': strings}}
+                mapping_task = {**task, 'instrument': {**task.get('instrument', {}), 'stringCount': strings}}
                 rows = score_rows.auto_associate(rows, saved, mapping_task, crops)
             else:
                 for row in rows:
@@ -821,6 +821,11 @@ def score_row_workspace(source_id):
                             w, h = image.size
                             row["detection"] = score_rows.suggest_lines(
                                 image.crop((0, round(row["top"]*h), w, round(row["bottom"]*h))), strings)
+        if 'stringCount' not in payload and 'score_string_count' not in saved:
+            detected = [r.get('detection', {}).get('detectedStrings') for r in rows]
+            detected = [n for n in detected if n in (4, 5, 6, 7)]
+            if detected:
+                strings = max((4, 5, 6, 7), key=detected.count)
         return jsonify(rows=rows, stringCount=strings, coverage=score_rows.row_coverage(rows, task, crops))
     except (ValueError, OSError) as exc:
         return json_error(str(exc))
@@ -837,7 +842,7 @@ def score_row_detect(source_id):
         with Image.open(cache / "crops" / row["file"]) as image:
             w, h = image.size
             image = image.crop((0, round(row["top"]*h), w, round(row["bottom"]*h)))
-            strings = barlist.number(request.json.get("stringCount", task["instrument"]["stringCount"]), "弦数", 4, 7, True)
+            strings = barlist.number(request.json.get("stringCount", saved.get("score_string_count", 6)), "弦数", 4, 7, True)
             result = score_rows.suggest_lines(image, strings)
         return jsonify(result)
     except (ValueError, KeyError, OSError) as exc:

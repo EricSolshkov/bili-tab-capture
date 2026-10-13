@@ -60,7 +60,7 @@ function renderBarlist() {
   if (!state.barlist) return;
   const task = state.barlist;
   const report = currentBarCoverage();
-  els.barlistSummary.textContent = `${task.video.bvid} · P${task.video.page} · 原始配置 ${task.instrument.stringCount} 弦 · 第 ${task.bars[0].number}–${task.bars[task.bars.length - 1].number} 小节` +
+  els.barlistSummary.textContent = `${task.video.bvid} · P${task.video.page} · 第 ${task.bars[0].number}–${task.bars[task.bars.length - 1].number} 小节` +
     (report ? `｜候选图 ${report.captured}/${report.expected}，待处理 ${report.unresolved}；谱面对应关系待确认。` : "｜等待取图。");
   els.barlistRows.replaceChildren();
   const statuses = { captured: "已取图，待核对谱面", missing: "缺图", excluded: "图片已隐藏或替换", conflict: "对应冲突" };

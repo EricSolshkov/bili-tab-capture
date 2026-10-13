@@ -22,6 +22,23 @@
     }
     return next-1;
   }
+  function reconcile(rows, bars) {
+    // Timeline identities, not visible rectangle counts, determine the sequence.
+    // Automatic duplicates can take over when their previous owner is removed.
+    const eligible = slot => !slot.skip || slot.reason === '相邻画面重复';
+    const owners=new Set();
+    for(const row of rows) {
+      if(row.excluded) continue;
+      for(const slot of slots(row,bars)) {
+        if(!eligible(slot) || slot.order==null) continue;
+        const original=slot.order;
+        slot.skip=owners.has(original);
+        slot.reason=slot.skip?'相邻画面重复':'';
+        owners.add(original);
+      }
+      row.first=bars[(row.slots.find(s=>!s.skip)?.order??0)-1]?.number??null;
+    }
+  }
   function report(rows,bars) {
     const seen=new Map(), pending=[], outside=[], ordering=[];
     let previous=0;
@@ -43,7 +60,7 @@
     return {covered:seen.size, expected:bars.length,pending,outside,ordering,missing,duplicates,
       complete:!pending.length&&!outside.length&&!ordering.length&&!missing.length&&!duplicates.length};
   }
-  const api={slots,reflow,report};
+  const api={slots,reflow,reconcile,report};
   if(typeof module!=='undefined') module.exports=api;
   else root.ScoreSequence=api;
 })(typeof window==='undefined'?{}:window);

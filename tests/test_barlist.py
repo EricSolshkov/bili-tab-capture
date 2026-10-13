@@ -32,6 +32,13 @@ class InlineThread:
 
 
 class BarlistTests(unittest.TestCase):
+    def test_timeline_only_task(self):
+        sample = task()
+        sample.pop('instrument')
+        normalized = barlist.normalize_task(sample)
+        self.assertNotIn('instrument', normalized)
+        self.assertEqual(normalized['bars'], sample['bars'])
+
     def test_real_sample_contract(self):
         sample = json.loads((Path(__file__).parent / "fixtures/BV1iR2iB5Ejk.bars-1-8.barlist.json").read_text(encoding="utf-8"))
         normalized = barlist.normalize_task(sample)

@@ -195,7 +195,7 @@ def auto_associate(rows, saved, task, crops_dir):
         votes, evidence, times = [], [], []
         with Image.open(Path(crops_dir)/row['file']) as representative:
             anchor = fingerprint(representative)
-            detection = row.get('detection') or suggest_lines(representative, task['instrument']['stringCount'])
+            detection = row.get('detection') or suggest_lines(representative)
             row['detection'] = detection
             for name in dict.fromkeys([row['file'], *row.get('candidates', [])]):
                 sample = metadata.get(name, {})
@@ -217,7 +217,7 @@ def auto_associate(rows, saved, task, crops_dir):
                     evidence.append(dict(t=t, bar_id=bar['id'], interval=interval, offset=offset))
         count = len(row['boundaries'])-1
         mode, support = Counter(votes).most_common(1)[0] if votes else (next_order, 0)
-        strong = support >= 2 and support/max(1,len(votes)) >= .8 and detection.get('detectedStrings') == task['instrument']['stringCount']
+        strong = support >= 2 and support/max(1,len(votes)) >= .8
         row['mapping'] = dict(kind='automatic' if strong else 'provisional', support=support,
                               samples=len(votes), evidence=evidence, first_order=mode,
                               sample_start=min(times) if times else None, sample_end=max(times) if times else None,

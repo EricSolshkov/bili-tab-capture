@@ -32,9 +32,9 @@
   }
   function changed(row, structural=false) {
     remember();
-    if(structural) sequence.reflow(rows,bars());
+    if(structural) sequence.reconcile(rows,bars());
     else {row.confirmed=true;row.mapping={...row.mapping,kind:'manual',reason:'已手动调整'};}
-    dirty=true;status(structural?'后续小节编号、回看时间与导出顺序已同步':'修改已采用，正在自动保存');render();scheduleSave();
+    dirty=true;status(structural?'已保留时间关联并重新去重；缺失小节会单独提示':'修改已采用，正在自动保存');render();scheduleSave();
   }
   function coverage() {
     const r=sequence.report(rows,bars());
@@ -90,8 +90,8 @@
       }));
       controls.append(button(row.excluded ? '恢复此行' : '排除此行', () => { row.excluded = !row.excluded; changed(row,true); }));
       controls.append(button('复制为另一段演奏', () => { const copy = structuredClone(row); copy.excluded=false; rows.splice(index+1,0,copy); changed(copy,true); }));
-      const trimLeft = button('排除左端小节', () => { included[0].skip=true; changed(row,true); });
-      const trimRight = button('排除右端小节', () => { included.at(-1).skip=true; changed(row,true); });
+      const trimLeft = button('排除左端小节', () => { included[0].skip=true; included[0].reason='手动排除'; changed(row,true); });
+      const trimRight = button('排除右端小节', () => { included.at(-1).skip=true; included.at(-1).reason='手动排除'; changed(row,true); });
       trimLeft.disabled = trimRight.disabled = !included.length;
       controls.append(trimLeft, trimRight);
       if (index > 0) controls.append(button('上移', () => { [rows[index-1], rows[index]] = [row, rows[index-1]]; changed(row,true); }));
@@ -217,7 +217,7 @@
   };
   $('saveScoreRows').onclick = () => save();
   $('undoScoreRows').onclick=()=>{if(!undoStack.length)return;rows=JSON.parse(undoStack.pop());dirty=true;render();scheduleSave();status('已撤销，后续编号与时间已恢复');};
-  $('acceptInferredRows').onclick=()=>{remember();sequence.reflow(rows,bars());rows.forEach(row=>{if(row.mappingIssue!=='image')row.confirmed=true;});dirty=true;render();scheduleSave();status('已采用当前有效区间，并按 bar list 全局顺排');};
+  $('acceptInferredRows').onclick=()=>{remember();sequence.reconcile(rows,bars());rows.forEach(row=>{if(row.mappingIssue!=='image')row.confirmed=true;});dirty=true;render();scheduleSave();status('已采用当前时间关联，并按小节身份去重');};
   $('autoAssociateRows').onclick=async()=>{
     if(busy)return;busy=true;clearTimeout(saveTimer);coverage();status('正在使用帧时间和高亮位置自动关联…');
     try{const data=await fetchJson(`/api/score_rows/${sourceId}`,{method:'POST',headers:JSON_HEADERS,body:JSON.stringify({action:'auto',stringCount})});remember();rows=data.rows;dirty=false;render();status('已自动关联并略过重复区间；只需关注不确定位置');}

@@ -48,6 +48,9 @@ class ScoreRowTests(unittest.TestCase):
                 restored=client.get(url).json
                 self.assertEqual(restored['stringCount'],5)
                 self.assertTrue(restored['coverage']['complete'])
+                source['barlist'] = {k: v for k, v in task.items() if k != 'instrument'}
+                self.assertEqual(client.get(url).status_code, 200)
+                self.assertEqual(client.post(url, json=payload).status_code, 200)
                 with client.post(url,json={**payload,'export':True}) as response:
                     self.assertEqual(response.status_code,200)
                     with zipfile.ZipFile(io.BytesIO(response.data)) as z:
@@ -178,6 +181,12 @@ class ScoreRowTests(unittest.TestCase):
                 manifest=json.loads(z.read('manifest.json'))
                 self.assertEqual([b['id'] for b in manifest['bars']],['b1','b2','b3','b4'])
                 self.assertEqual([b['review'] for b in manifest['bars']],['automatic']*4)
+            # Legacy instrument hints and new timing-only tasks must locate/deduplicate identically.
+            for variant in [dict(task, instrument=dict(stringCount=6)), {'bars': task['bars']}]:
+                associated = score_rows.auto_associate(rows, saved, variant, root)
+                self.assertTrue(all(r['confirmed'] for r in associated))
+                self.assertEqual([s['skip'] for s in associated[1]['slots']], [True, True, False])
+                self.assertTrue(score_rows.row_coverage(associated, variant, root)['complete'])
             # Monochrome images alone cannot prove where the active bar is.
             staff_image(5).save(root/'a0.png');staff_image(5).save(root/'a1.png')
             unknown=score_rows.auto_associate([rows[0]],saved,task,root)[0]

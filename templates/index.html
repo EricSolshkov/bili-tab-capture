@@ -85,7 +85,7 @@
           <button class="secondary-button" id="bilibiliLoginButton" type="button">登录高清</button>
         </div>
 
-        <p>也可拖入 barline 导出的 .barlist.json，自动接收视频、小节范围和弦数。</p>
+        <p>也可拖入 barline 导出的 .barlist.json，自动接收视频和小节时间表。</p>
         <button class="primary-button import-button" id="importButton" type="submit">导入</button>
       </form>
 
@@ -236,7 +236,7 @@
         <h2>整行谱面校对</h2>
         <label>转谱弦数 <select id="scoreStringCount" aria-label="转谱弦数"><option value="4">4 弦</option><option value="5">5 弦</option><option value="6">6 弦</option><option value="7">7 弦</option></select></label>
         <p>帧时间与播放高亮自动关联小节，重复区间自动略过。点击编号回看，点击区间 × 排除；编辑后全局联动编号和时间。灰色区间不导出。</p>
-        <div class="button-row"><button id="autoAssociateRows" type="button" class="secondary-button">重新自动关联</button><button id="undoScoreRows" type="button" class="secondary-button" disabled>撤销上次编辑</button><button id="acceptInferredRows" type="button" class="secondary-button">采用当前推断并全局顺排</button></div>
+        <div class="button-row"><button id="autoAssociateRows" type="button" class="secondary-button">重新自动关联</button><button id="undoScoreRows" type="button" class="secondary-button" disabled>撤销上次编辑</button><button id="acceptInferredRows" type="button" class="secondary-button">采用当前推断并去重</button></div>
         <div class="button-row"><button id="saveScoreRows" type="button" class="secondary-button">保存校对</button><button id="exportScoreRows" type="button" class="primary-button" disabled>批量切图并下载 ZIP</button></div>
         <label><input id="scoreRowsPendingOnly" type="checkbox">只看待校对的行</label>
         <p id="scoreRowStatus" role="status"></p>

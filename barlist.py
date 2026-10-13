@@ -39,7 +39,7 @@ def normalize_task(raw):
     instrument = raw.get("instrument") or {}
     if not isinstance(instrument, dict):
         raise ValueError("instrument 格式错误")
-    strings = number(instrument.get("stringCount"), "弦数", 4, 7, True)
+    strings = number(instrument.get("stringCount", 6), "弦数", 4, 7, True)
     tuning = instrument.get("tuningMidi")
     if tuning is not None:
         if not isinstance(tuning, list) or len(tuning) != strings:
@@ -80,12 +80,15 @@ def normalize_task(raw):
     task_id = raw.get("taskId")
     if not isinstance(task_id, str) or not re.fullmatch(r"[A-Za-z0-9_-]{1,100}", task_id):
         raise ValueError("缺少有效 taskId")
-    return dict(schema=SCHEMA, version=1, taskId=task_id,
+    result = dict(schema=SCHEMA, version=1, taskId=task_id,
                 revision=number(raw.get("revision", 1), "revision", 1, 10**15, True),
                 video=dict(bvid=video["bvid"], cid=cid, page=page, title=str(video.get("title", ""))[:500]),
                 instrument=dict(stringCount=strings, tuningMidi=tuning,
                                 capo=number(instrument.get("capo", 0), "变调夹", 0, 24, True)),
                 bars=clean)
+    if "instrument" not in raw:
+        result.pop("instrument")
+    return result
 
 
 def task_digest(task):
